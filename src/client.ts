@@ -1,21 +1,21 @@
-import { LSTM } from './lstm';
+import { Genome } from './genome';
 
 export class Client {
-    #lstm: LSTM;
+    #genome: Genome;
     #bestScore: boolean = false;
 
-    constructor(LSTM: LSTM) {
-        this.#lstm = LSTM;
+    constructor(LSTM: Genome) {
+        this.#genome = LSTM;
     }
 
     mutate(force = false) {
         if (this.#bestScore && !force) {
             return;
         }
-        this.#lstm.mutate();
+        this.#genome.mutate();
     }
 
     calculate(input: number[]): number {
-        return this.#lstm.calculate(input);
+        return this.#genome.calculate(input);
     }
 }

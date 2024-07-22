@@ -155,13 +155,17 @@ export class LSTM {
         return output;
     }
 
-    calculate(input: number[]) {
+    calculate(input: number[], fullSeq = false): number[] {
         this.#longMemory = 0;
         this.#shortMemory = 0;
+        const fullSeqMemory: number[] = [];
         input.forEach(num => {
             this.#predictUnit(num);
+            if (fullSeq) {
+                fullSeqMemory.push(this.#shortMemory);
+            }
         });
-        return this.#shortMemory;
+        return fullSeq ? fullSeqMemory : [this.#shortMemory];
     }
 
     #getBlockToMutate(): ShortMemoryBlock {

@@ -1,1 +1,1 @@
-export { LSTM } from './lstm';
+export { GeneLSTM } from './gLstm';

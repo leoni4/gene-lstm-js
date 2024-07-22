@@ -1,6 +1,7 @@
 import { Client } from './client';
 import { Species } from './species';
 import { LSTM } from './lstm';
+import { Genome } from './genome';
 
 interface GeneLSTMOptions {
     SURVIVORS?: number;
@@ -13,6 +14,7 @@ interface GeneLSTMOptions {
     WEIGHT_RANDOM_STRENGTH?: number;
     PROBABILITY_MUTATE_WEIGHT_SHIFT?: number;
     PROBABILITY_MUTATE_WEIGHT_RANDOM?: number;
+    PROBABILITY_MUTATE_NEW_LSTM?: number;
     loadData?: object;
 }
 
@@ -34,6 +36,8 @@ export class GeneLSTM {
     #PROBABILITY_MUTATE_WEIGHT_SHIFT: number;
     #PROBABILITY_MUTATE_WEIGHT_RANDOM: number;
 
+    #PROBABILITY_MUTATE_NEW_LSTM: number;
+
     constructor(clients: number, options?: GeneLSTMOptions) {
         this.#maxClients = clients;
 
@@ -47,6 +51,7 @@ export class GeneLSTM {
         this.#WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH || 1;
         this.#PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT || 1;
         this.#PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM || 1;
+        this.#PROBABILITY_MUTATE_NEW_LSTM = options?.PROBABILITY_MUTATE_NEW_LSTM || 1;
 
         if (options?.loadData) {
             this.#load(options?.loadData);
@@ -85,13 +90,20 @@ export class GeneLSTM {
     get PROBABILITY_MUTATE_WEIGHT_RANDOM() {
         return this.#PROBABILITY_MUTATE_WEIGHT_RANDOM;
     }
+    get PROBABILITY_MUTATE_NEW_LSTM() {
+        return this.#PROBABILITY_MUTATE_NEW_LSTM;
+    }
 
     #load(data: object) {}
+
+    #emptyGenome() {
+        return new Genome(this);
+    }
 
     #reset() {
         this.#clients = [];
         for (let i = 0; i < this.#maxClients; i += 1) {
-            const c: Client = new Client(new LSTM(this));
+            const c: Client = new Client(this.#emptyGenome());
             this.#clients.push(c);
         }
     }

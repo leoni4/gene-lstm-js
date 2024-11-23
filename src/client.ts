@@ -15,7 +15,7 @@ export class Client {
         this.#genome.mutate();
     }
 
-    calculate(input: number[]): number {
+    calculate(input: number[]): number[] {
         return this.#genome.calculate(input);
     }
 }

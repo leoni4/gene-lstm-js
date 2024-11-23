@@ -3,6 +3,8 @@ import { Species } from './species';
 import { LSTM } from './lstm';
 import { Genome } from './genome';
 
+import type { LstmOptions } from './types/index';
+
 interface GeneLSTMOptions {
     SURVIVORS?: number;
     MUTATION_RATE?: number;
@@ -15,7 +17,7 @@ interface GeneLSTMOptions {
     PROBABILITY_MUTATE_WEIGHT_SHIFT?: number;
     PROBABILITY_MUTATE_WEIGHT_RANDOM?: number;
     PROBABILITY_MUTATE_NEW_LSTM?: number;
-    loadData?: object;
+    loadData?: LstmOptions;
 }
 
 export class GeneLSTM {
@@ -41,14 +43,14 @@ export class GeneLSTM {
     constructor(clients: number, options?: GeneLSTMOptions) {
         this.#maxClients = clients;
 
-        this.#SURVIVORS = options?.SURVIVORS || 1;
+        this.#SURVIVORS = options?.SURVIVORS || 0.8;
         this.#MUTATION_RATE = options?.MUTATION_RATE || 1;
         this.#BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH || 1;
         this.#BIAS_RANDOM_STRENGTH = options?.BIAS_RANDOM_STRENGTH || 1;
-        this.#PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT || 1;
-        this.#PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM || 1;
         this.#WEIGHT_SHIFT_STRENGTH = options?.WEIGHT_SHIFT_STRENGTH || 1;
         this.#WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH || 1;
+        this.#PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT || 1;
+        this.#PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM || 1;
         this.#PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT || 1;
         this.#PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM || 1;
         this.#PROBABILITY_MUTATE_NEW_LSTM = options?.PROBABILITY_MUTATE_NEW_LSTM || 1;

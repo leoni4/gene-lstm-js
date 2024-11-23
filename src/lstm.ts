@@ -1,17 +1,5 @@
 import { GeneLSTM } from './gLstm';
-
-interface ShortMemory {
-    weight1: number;
-    weight2: number;
-    bias: number;
-}
-
-interface LstmOptions {
-    forgetGate: ShortMemory;
-    potentialLongToRem: ShortMemory;
-    potentialLongMemory: ShortMemory;
-    shortMemoryToRemember: ShortMemory;
-}
+import type { LstmOptions } from './types/index';
 
 type ActivationName = 'sigmoid' | 'tanh';
 type ActivationFunction = (x: number) => number;
@@ -43,10 +31,10 @@ class ShortMemoryBlock {
         return this.#weight1;
     }
     get weight2() {
-        return this.#weight1;
+        return this.#weight2;
     }
     get bias() {
-        return this.#weight1;
+        return this.#bias;
     }
     set weight1(num: number) {
         this.#weight1 = num;
@@ -166,6 +154,31 @@ export class LSTM {
             }
         });
         return fullSeq ? fullSeqMemory : [this.#shortMemory];
+    }
+
+    model(): LstmOptions {
+        return {
+            forgetGate: {
+                weight1: this.#forgetGate.weight1,
+                weight2: this.#forgetGate.weight2,
+                bias: this.#forgetGate.bias,
+            },
+            potentialLongToRem: {
+                weight1: this.#potentialLongToRem.weight1,
+                weight2: this.#potentialLongToRem.weight2,
+                bias: this.#potentialLongToRem.bias,
+            },
+            potentialLongMemory: {
+                weight1: this.#potentialLongMemory.weight1,
+                weight2: this.#potentialLongMemory.weight2,
+                bias: this.#potentialLongMemory.bias,
+            },
+            shortMemoryToRemember: {
+                weight1: this.#shortMemoryToRemember.weight1,
+                weight2: this.#shortMemoryToRemember.weight2,
+                bias: this.#shortMemoryToRemember.bias,
+            },
+        };
     }
 
     #getBlockToMutate(): ShortMemoryBlock {

@@ -4,6 +4,7 @@
     "description": "",
     "main": "index.js",
     "scripts": {
+        "usage": "nodemon ./out/tests/usage.js",
         "start": "nodemon index.js",
         "build": "webpack",
         "build:tsc": "tsc",

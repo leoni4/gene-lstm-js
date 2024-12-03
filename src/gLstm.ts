@@ -44,22 +44,18 @@ export class GeneLSTM {
         this.#maxClients = clients;
 
         this.#SURVIVORS = options?.SURVIVORS || 0.8;
-        this.#MUTATION_RATE = options?.MUTATION_RATE || 1;
-        this.#BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH || 1;
-        this.#BIAS_RANDOM_STRENGTH = options?.BIAS_RANDOM_STRENGTH || 1;
-        this.#WEIGHT_SHIFT_STRENGTH = options?.WEIGHT_SHIFT_STRENGTH || 1;
-        this.#WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH || 1;
-        this.#PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT || 1;
-        this.#PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM || 1;
-        this.#PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT || 1;
-        this.#PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM || 1;
-        this.#PROBABILITY_MUTATE_NEW_LSTM = options?.PROBABILITY_MUTATE_NEW_LSTM || 1;
+        this.#MUTATION_RATE = options?.MUTATION_RATE || 0.5;
+        this.#BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH || 0.5;
+        this.#BIAS_RANDOM_STRENGTH = options?.BIAS_RANDOM_STRENGTH || 0.5;
+        this.#WEIGHT_SHIFT_STRENGTH = options?.WEIGHT_SHIFT_STRENGTH || 0.5;
+        this.#WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH || 0.5;
+        this.#PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT || 0.5;
+        this.#PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM || 0.5;
+        this.#PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT || 0.5;
+        this.#PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM || 0.5;
+        this.#PROBABILITY_MUTATE_NEW_LSTM = options?.PROBABILITY_MUTATE_NEW_LSTM || 0.5;
 
-        if (options?.loadData) {
-            this.#load(options?.loadData);
-        } else {
-            this.#reset();
-        }
+        this.#init(options?.loadData);
     }
 
     get SURVIVORS() {
@@ -96,10 +92,24 @@ export class GeneLSTM {
         return this.#PROBABILITY_MUTATE_NEW_LSTM;
     }
 
-    #load(data: object) {}
-
     #emptyGenome() {
         return new Genome(this);
+    }
+
+    #init(data?: LstmOptions) {
+        if (data) {
+            this.#load(data);
+        } else {
+            this.#reset();
+        }
+    }
+
+    #load(data: LstmOptions) {
+        this.#clients = [];
+        for (let i = 0; i < this.#maxClients; i += 1) {
+            const c: Client = new Client(this.#emptyGenome());
+            this.#clients.push(c);
+        }
     }
 
     #reset() {

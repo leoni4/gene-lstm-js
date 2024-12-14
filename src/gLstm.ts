@@ -6,6 +6,7 @@ import { Genome } from './genome';
 import type { LstmOptions } from './types/index';
 
 interface GeneLSTMOptions {
+    CP?: number;
     SURVIVORS?: number;
     MUTATION_RATE?: number;
     BIAS_SHIFT_STRENGTH?: number;
@@ -25,6 +26,8 @@ export class GeneLSTM {
     #species: Species[] = [];
     #maxClients: number;
 
+    #CP: number;
+
     #SURVIVORS: number;
     #MUTATION_RATE: number;
 
@@ -43,6 +46,7 @@ export class GeneLSTM {
     constructor(clients: number, options?: GeneLSTMOptions) {
         this.#maxClients = clients;
 
+        this.#CP = options?.CP || 0.5;
         this.#SURVIVORS = options?.SURVIVORS || 0.8;
         this.#MUTATION_RATE = options?.MUTATION_RATE || 0.5;
         this.#BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH || 0.5;
@@ -56,6 +60,10 @@ export class GeneLSTM {
         this.#PROBABILITY_MUTATE_NEW_LSTM = options?.PROBABILITY_MUTATE_NEW_LSTM || 0.5;
 
         this.#init(options?.loadData);
+    }
+
+    get CP() {
+        return this.#CP;
     }
 
     get SURVIVORS() {
@@ -105,17 +113,16 @@ export class GeneLSTM {
     }
 
     #load(data: LstmOptions) {
-        this.#clients = [];
-        for (let i = 0; i < this.#maxClients; i += 1) {
-            const c: Client = new Client(this.#emptyGenome());
-            this.#clients.push(c);
-        }
+        throw new Error('Not implemented');
     }
 
     #reset() {
         this.#clients = [];
         for (let i = 0; i < this.#maxClients; i += 1) {
             const c: Client = new Client(this.#emptyGenome());
+            if (i === 0) {
+                this.#species.push(new Species(c));
+            }
             this.#clients.push(c);
         }
     }

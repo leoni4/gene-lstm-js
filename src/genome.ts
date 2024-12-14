@@ -9,6 +9,13 @@ export class Genome {
         this.#glstm = glstm;
         this.#lstmArray = [new LSTM(this.#glstm)];
     }
+    get glstm() {
+        return this.#glstm;
+    }
+
+    distance(genome: Genome): number {
+        throw new Error('Method not implemented.');
+    }
 
     mutate() {
         this.#lstmArray.forEach(lstm => {

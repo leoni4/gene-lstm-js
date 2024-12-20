@@ -29,6 +29,6 @@ export class Species {
     }
 
     size() {
-        return 0;
+        return this.#clients.length;
     }
 }

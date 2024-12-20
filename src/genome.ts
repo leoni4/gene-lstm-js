@@ -9,6 +9,7 @@ export class Genome {
         this.#glstm = glstm;
         this.#lstmArray = [new LSTM(this.#glstm)];
     }
+
     get glstm() {
         return this.#glstm;
     }

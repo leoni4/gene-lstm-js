@@ -1,13 +1,21 @@
 import { LSTM } from './lstm';
 import { GeneLSTM } from './gLstm';
+import type { GeneOptions } from './types/index';
 
 export class Genome {
     #glstm: GeneLSTM;
     #lstmArray: LSTM[];
 
-    constructor(glstm: GeneLSTM) {
+    constructor(glstm: GeneLSTM, data?: GeneOptions) {
         this.#glstm = glstm;
-        this.#lstmArray = [new LSTM(this.#glstm)];
+        this.#lstmArray = [];
+        if (data) {
+            data.forEach(option => {
+                this.#lstmArray.push(new LSTM(this.#glstm, option));
+            });
+        } else {
+            this.#lstmArray.push(new LSTM(this.#glstm));
+        }
     }
 
     get glstm() {

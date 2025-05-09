@@ -1,9 +1,8 @@
 import { Client } from './client';
 import { Species } from './species';
-import { LSTM } from './lstm';
 import { Genome } from './genome';
 
-import type { LstmOptions } from './types/index';
+import type { GeneOptions } from './types/index';
 
 interface GeneLSTMOptions {
     CP?: number;
@@ -18,7 +17,7 @@ interface GeneLSTMOptions {
     PROBABILITY_MUTATE_WEIGHT_SHIFT?: number;
     PROBABILITY_MUTATE_WEIGHT_RANDOM?: number;
     PROBABILITY_MUTATE_NEW_LSTM?: number;
-    loadData?: LstmOptions;
+    loadData?: GeneOptions;
 }
 
 export class GeneLSTM {
@@ -100,26 +99,28 @@ export class GeneLSTM {
         return this.#PROBABILITY_MUTATE_NEW_LSTM;
     }
 
+    get clients() {
+        return this.#clients;
+    }
+
     #emptyGenome() {
         return new Genome(this);
     }
 
-    #init(data?: LstmOptions) {
+    #initGenome(data: GeneOptions) {
+        return new Genome(this, data);
+    }
+
+    #init(data?: GeneOptions) {
+        let genome: Genome;
         if (data) {
-            this.#load(data);
+            genome = this.#initGenome(data);
         } else {
-            this.#reset();
+            genome = this.#emptyGenome();
         }
-    }
-
-    #load(data: LstmOptions) {
-        throw new Error('Not implemented');
-    }
-
-    #reset() {
         this.#clients = [];
         for (let i = 0; i < this.#maxClients; i += 1) {
-            const c: Client = new Client(this.#emptyGenome());
+            const c: Client = new Client(genome);
             if (i === 0) {
                 this.#species.push(new Species(c));
             } else {
@@ -137,5 +138,9 @@ export class GeneLSTM {
         console.log('###');
     }
 
-    evolve() {}
+    evolve() {
+        this.#clients.forEach(client => {
+            client.mutate();
+        });
+    }
 }

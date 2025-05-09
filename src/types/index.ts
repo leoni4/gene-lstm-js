@@ -10,3 +10,5 @@ export interface LstmOptions {
     potentialLongMemory: ShortMemory;
     shortMemoryToRemember: ShortMemory;
 }
+
+export type GeneOptions = LstmOptions[];

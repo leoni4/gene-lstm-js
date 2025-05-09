@@ -1,5 +1,4 @@
 import { GeneLSTM } from '../index';
-import { LSTM } from '../lstm';
 
 import type { LstmOptions } from '../types/index';
 
@@ -35,12 +34,14 @@ const usePreTrained = () => {
         },
     };
 
-    const glstm = new GeneLSTM(1);
-    const lstm = new LSTM(glstm, options);
+    const glstm = new GeneLSTM(1, {
+        loadData: [options],
+    });
 
-    const out = lstm.calculate(trainingData.inputs[0], false);
+    const c = glstm.clients[0];
+    const out = c.calculate(trainingData.inputs[0]);
+    const out2 = c.calculate(trainingData.inputs[1]);
 
-    const out2 = lstm.calculate(trainingData.inputs[1], false);
     console.log('---- PRE TRAINED -----');
     console.log('out1', out, `// should be ${trainingData.outputs[0]}`);
     console.log('out2', out2, `// should be ${trainingData.outputs[1]}`);
@@ -48,50 +49,68 @@ const usePreTrained = () => {
 };
 usePreTrained();
 
-const usetraining = () => {
+const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
+
+const train = (glstm: GeneLSTM) => {
+    let epoch = 0;
+    let iter = 0;
+    let bestClient: any;
+    const EPOCHS = 1000;
+    return new Promise(resolve => {
+        const session = async () => {
+            epoch++;
+            let error = Infinity;
+            for (let c = 0; c < glstm.clients.length; c++) {
+                const client = glstm.clients[c];
+                client.bestScore = false;
+                let localError = 0;
+                for (let t = 0; t < trainingData.inputs.length; t++) {
+                    const input = trainingData.inputs[t];
+                    const output = trainingData.outputs[t];
+
+                    iter++;
+                    const out = client.calculate(input)[0];
+                    localError += Math.abs(out - output);
+                    if (iter % 1000 === 0) {
+                        await sleep(0);
+                    }
+                }
+                client.error = localError;
+                client.score = 1 - localError;
+                if (error > localError) {
+                    error = localError;
+                    bestClient = client;
+                }
+            }
+            if (epoch % 10 === 0) {
+                console.log('Epoch:', epoch, ' Error:', error);
+            }
+            if (epoch >= EPOCHS || error < 0.01) {
+                resolve(error);
+                return;
+            }
+            bestClient.bestScore = true;
+            glstm.evolve();
+            session();
+        };
+        session();
+    });
+};
+
+const usetraining = async () => {
     const glstm = new GeneLSTM(100);
     glstm.printSpecies();
+
+    console.log('---- START TRAIN -----');
+    await train(glstm);
+
+    const c = glstm.clients[0];
+    const out = c.calculate(trainingData.inputs[0]);
+    const out2 = c.calculate(trainingData.inputs[1]);
+
+    console.log('---- TRAINED -----');
+    console.log('out1', out, `// should be ${trainingData.outputs[0]}`);
+    console.log('out2', out2, `// should be ${trainingData.outputs[1]}`);
+    console.log('---- ----------- -----');
 };
 usetraining();
-
-// console.log('---- START TRAIN -----');
-// let realLSTM1 = new LSTM(glstm);
-// let realLSTM2 = new LSTM(glstm);
-// let epoch = 0;
-// const train = async () => {
-//     epoch++;
-//     let error1 = 0;
-//     let error2 = 0;
-//     let bestLSTM;
-//     trainingData.inputs.forEach((input, i) => {
-//         const out = realLSTM1.calculate(input, false)[0];
-//         error1 += Math.abs(out - trainingData.outputs[i]);
-//         const out2 = realLSTM2.calculate(input, false)[0];
-//         error2 += Math.abs(out2 - trainingData.outputs[i]);
-//     });
-//     error1 /= trainingData.inputs.length;
-//     error2 /= trainingData.inputs.length;
-//     const error = Math.min(error1, error2);
-//     console.log('epoch:', epoch, '- error:', error, '#', error1 < error2 ? 1 : 2);
-//     if (error1 < error2) {
-//         bestLSTM = realLSTM1;
-//         realLSTM2 = new LSTM(glstm, realLSTM1.model());
-//         realLSTM2.mutate();
-//     } else {
-//         bestLSTM = realLSTM2;
-//         realLSTM1 = new LSTM(glstm, realLSTM2.model());
-//         realLSTM1.mutate();
-//     }
-
-//     if (epoch > 100000 || error < 0.01) {
-//         console.log('---- TRAINED -----');
-//         const out = bestLSTM.calculate(trainingData.inputs[0], false);
-//         const out2 = bestLSTM.calculate(trainingData.inputs[1], false);
-//         console.log('out1', out, `// should be ${trainingData.outputs[0]}`);
-//         console.log('out2', out2, `// should be ${trainingData.outputs[1]}`);
-//         console.log('---- ----------- -----');
-//         return;
-//     }
-//     setTimeout(train, 1);
-// };
-// train();

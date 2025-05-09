@@ -122,15 +122,19 @@ export class GeneLSTM {
             const c: Client = new Client(this.#emptyGenome());
             if (i === 0) {
                 this.#species.push(new Species(c));
+            } else {
+                this.#species[0].put(c, true);
             }
             this.#clients.push(c);
         }
     }
 
     printSpecies() {
+        console.log('### Species:', this.#species.length);
         for (let i = 0; i < this.#species.length; i += 1) {
             console.log(this.#species[i].score, this.#species[i].size());
         }
+        console.log('###');
     }
 
     evolve() {}

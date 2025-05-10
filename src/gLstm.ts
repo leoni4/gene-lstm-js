@@ -24,6 +24,8 @@ export class GeneLSTM {
     #clients: Client[] = [];
     #species: Species[] = [];
     #maxClients: number;
+    #sameErrorEpoch: number = 0;
+    #lastError?: number;
 
     #CP: number;
 
@@ -145,12 +147,12 @@ export class GeneLSTM {
     }
 
     evolve(optimization = false, error?: number) {
-        // if (this.#lastError === error) {
-        //     this.#sameErrorEpoch += 1;
-        // } else {
-        //     this.#sameErrorEpoch = 0;
-        // }
-        // this.#lastError = error;
+        if (this.#lastError === error) {
+            this.#sameErrorEpoch += 1;
+        } else {
+            this.#sameErrorEpoch = 0;
+        }
+        this.#lastError = error;
         // this.#evolveCounts++;
         // this.#optimization = optimization || this.#evolveCounts % 10 === 0;
         // this.#normalizeScore();

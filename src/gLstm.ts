@@ -138,9 +138,29 @@ export class GeneLSTM {
         console.log('###');
     }
 
-    evolve() {
+    #mutate() {
         this.#clients.forEach(client => {
             client.mutate();
         });
+    }
+
+    evolve(optimization = false, error?: number) {
+        // if (this.#lastError === error) {
+        //     this.#sameErrorEpoch += 1;
+        // } else {
+        //     this.#sameErrorEpoch = 0;
+        // }
+        // this.#lastError = error;
+        // this.#evolveCounts++;
+        // this.#optimization = optimization || this.#evolveCounts % 10 === 0;
+        // this.#normalizeScore();
+        // this.#genSpecies();
+        // this.#kill();
+        // this.#removeExtinct();
+        // this.#reproduce();
+        this.#mutate();
+        // for (let i = 0; i < this.#clients.length; i += 1) {
+        //     this.#clients[i].generateCalculator();
+        // }
     }
 }

@@ -9,7 +9,6 @@ interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
     C2?: number;
-    CT?: number;
     SURVIVORS?: number;
     MUTATION_RATE?: number;
     BIAS_SHIFT_STRENGTH?: number;
@@ -34,7 +33,6 @@ export class GeneLSTM {
     #CP: number;
     #C1: number;
     #C2: number;
-    #CT: number;
 
     #SURVIVORS: number;
     #MUTATION_RATE: number;
@@ -57,21 +55,21 @@ export class GeneLSTM {
     constructor(clients: number, options?: GeneLSTMOptions) {
         this.#maxClients = clients;
 
-        this.#CP = options?.CP || 0.5;
-        this.#C1 = options?.C1 || 0.5;
-        this.#C2 = options?.C2 || 0.5;
-        this.#CT = options?.CT || 0.5;
-        this.#SURVIVORS = options?.SURVIVORS || 0.8;
-        this.#MUTATION_RATE = options?.MUTATION_RATE || 0.5;
-        this.#BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH || 0.5;
-        this.#BIAS_RANDOM_STRENGTH = options?.BIAS_RANDOM_STRENGTH || 0.5;
-        this.#WEIGHT_SHIFT_STRENGTH = options?.WEIGHT_SHIFT_STRENGTH || 0.5;
-        this.#WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH || 0.5;
-        this.#PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT || 0.5;
-        this.#PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM || 0.5;
-        this.#PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT || 0.5;
-        this.#PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM || 0.5;
-        this.#PROBABILITY_MUTATE_NEW_LSTM = options?.PROBABILITY_MUTATE_NEW_LSTM || 0.5;
+        this.#CP = options?.CP ?? 3.0;
+        this.#C1 = options?.C1 ?? 1.0;
+        this.#C2 = options?.C2 ?? 0.4;
+        this.#SURVIVORS = options?.SURVIVORS ?? 0.2;
+        this.#MUTATION_RATE = options?.MUTATION_RATE ?? 0.05;
+        this.#BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH ?? 0.2;
+        this.#BIAS_RANDOM_STRENGTH = options?.BIAS_RANDOM_STRENGTH ?? 1.0;
+        this.#WEIGHT_SHIFT_STRENGTH = options?.WEIGHT_SHIFT_STRENGTH ?? 0.2;
+        this.#WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH ?? 1.0;
+
+        this.#PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT ?? 0.8;
+        this.#PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM ?? 0.1;
+        this.#PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.8;
+        this.#PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM ?? 0.1;
+        this.#PROBABILITY_MUTATE_NEW_LSTM = options?.PROBABILITY_MUTATE_NEW_LSTM ?? 0.05;
 
         this.#init(options?.loadData);
     }
@@ -86,10 +84,6 @@ export class GeneLSTM {
 
     get C2() {
         return this.#C2;
-    }
-
-    get CT() {
-        return this.#CT;
     }
 
     get SURVIVORS() {

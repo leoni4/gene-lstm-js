@@ -10,6 +10,17 @@ const trainingData = {
     outputs: [0, 1],
 };
 
+const testData = {
+    inputs: [
+        [0.1, 0.5, 0.25, 1], // ожидание: ближе к 0
+        [0.9, 0.5, 0.25, 1], // ожидание: ближе к 1
+        [0.5, 0.5, 0.25, 1], // пограничное — интересно как поведёт себя сеть
+        [0, 0.4, 0.3, 1], // похож на 0, но шум
+        [1, 0.6, 0.2, 1], // похож на 1, но шум
+    ],
+    outputs: [0, 1, 0.5, 0, 1], // предположения, не обязательны
+};
+
 const usePreTrained = () => {
     const options: LstmOptions = {
         forgetGate: {
@@ -51,7 +62,7 @@ usePreTrained();
 
 const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
 
-const train = (glstm: GeneLSTM) => {
+const train = (glstm: GeneLSTM, data = trainingData) => {
     let epoch = 0;
     let iter = 0;
     let bestClient: any;
@@ -64,9 +75,9 @@ const train = (glstm: GeneLSTM) => {
                 const client = glstm.clients[c];
                 client.bestScore = false;
                 let localError = 0;
-                for (let t = 0; t < trainingData.inputs.length; t++) {
-                    const input = trainingData.inputs[t];
-                    const output = trainingData.outputs[t];
+                for (let t = 0; t < data.inputs.length; t++) {
+                    const input = data.inputs[t];
+                    const output = data.outputs[t];
 
                     iter++;
                     const out = client.calculate(input)[0];
@@ -102,15 +113,16 @@ const usetraining = async () => {
     glstm.printSpecies();
 
     console.log('---- START TRAIN -----');
-    await train(glstm);
+    await train(glstm, trainingData);
+    console.log('---- END TRAIN -----');
 
     const c = glstm.clients[0];
-    const out = c.calculate(trainingData.inputs[0]);
-    const out2 = c.calculate(trainingData.inputs[1]);
 
     console.log('---- TRAINED -----');
-    console.log('out1', out, `// should be ${trainingData.outputs[0]}`);
-    console.log('out2', out2, `// should be ${trainingData.outputs[1]}`);
+    testData.inputs.forEach((input, i) => {
+        const out = c.calculate(input);
+        console.log('input', input, 'out', out, `// should be ${testData.outputs[i]}`);
+    });
     console.log('---- ----------- -----');
 };
 usetraining();

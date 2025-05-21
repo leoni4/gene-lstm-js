@@ -62,8 +62,7 @@ export class Genome {
 
         weightDiff /= similar || 1;
 
-        const N = maxLen < this.#glstm.CT ? 1 : maxLen;
-        return (this.#glstm.C1 * excess) / N + this.#glstm.C2 * weightDiff;
+        return this.#glstm.C1 * excess + this.#glstm.C2 * weightDiff;
     }
 
     mutate() {

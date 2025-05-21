@@ -8,7 +8,7 @@ function sigmoid(x: number): number {
     return 1 / (1 + Math.exp(-x));
 }
 
-class ShortMemoryBlock {
+export class ShortMemoryBlock {
     #activationName: ActivationName;
     #activationFunction: ActivationFunction;
     #weight1: number = 0;
@@ -55,7 +55,7 @@ class ShortMemoryBlock {
     }
 }
 
-class OutputBlock {
+export class OutputBlock {
     calculate(longMemory: number, shortMemory: number) {
         const out = Math.tanh(longMemory) * shortMemory;
         return out;
@@ -125,6 +125,23 @@ export class LSTM {
 
     get shortMemory() {
         return this.#shortMemory;
+    }
+
+    flattenWeights(): number[] {
+        return [
+            this.#forgetGate.weight1,
+            this.#forgetGate.weight2,
+            this.#forgetGate.bias,
+            this.#potentialLongToRem.weight1,
+            this.#potentialLongToRem.weight2,
+            this.#potentialLongToRem.bias,
+            this.#potentialLongMemory.weight1,
+            this.#potentialLongMemory.weight2,
+            this.#potentialLongMemory.bias,
+            this.#shortMemoryToRemember.weight1,
+            this.#shortMemoryToRemember.weight2,
+            this.#shortMemoryToRemember.bias,
+        ];
     }
 
     #predictUnit(input: number) {

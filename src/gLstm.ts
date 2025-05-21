@@ -1,11 +1,15 @@
 import { Client } from './client';
 import { Species } from './species';
 import { Genome } from './genome';
+import { RandomSelector } from './randomSelector';
 
 import type { GeneOptions } from './types/index';
 
 interface GeneLSTMOptions {
     CP?: number;
+    C1?: number;
+    C2?: number;
+    CT?: number;
     SURVIVORS?: number;
     MUTATION_RATE?: number;
     BIAS_SHIFT_STRENGTH?: number;
@@ -28,6 +32,9 @@ export class GeneLSTM {
     #lastError?: number;
 
     #CP: number;
+    #C1: number;
+    #C2: number;
+    #CT: number;
 
     #SURVIVORS: number;
     #MUTATION_RATE: number;
@@ -44,10 +51,16 @@ export class GeneLSTM {
 
     #PROBABILITY_MUTATE_NEW_LSTM: number;
 
+    #evolveCounts = 0;
+    #optimization = false;
+
     constructor(clients: number, options?: GeneLSTMOptions) {
         this.#maxClients = clients;
 
         this.#CP = options?.CP || 0.5;
+        this.#C1 = options?.C1 || 0.5;
+        this.#C2 = options?.C2 || 0.5;
+        this.#CT = options?.CT || 0.5;
         this.#SURVIVORS = options?.SURVIVORS || 0.8;
         this.#MUTATION_RATE = options?.MUTATION_RATE || 0.5;
         this.#BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH || 0.5;
@@ -65,6 +78,18 @@ export class GeneLSTM {
 
     get CP() {
         return this.#CP;
+    }
+
+    get C1() {
+        return this.#C1;
+    }
+
+    get C2() {
+        return this.#C2;
+    }
+
+    get CT() {
+        return this.#CT;
     }
 
     get SURVIVORS() {
@@ -105,7 +130,7 @@ export class GeneLSTM {
         return this.#clients;
     }
 
-    #emptyGenome() {
+    emptyGenome() {
         return new Genome(this);
     }
 
@@ -118,7 +143,7 @@ export class GeneLSTM {
         if (data) {
             genome = this.#initGenome(data);
         } else {
-            genome = this.#emptyGenome();
+            genome = this.emptyGenome();
         }
         this.#clients = [];
         for (let i = 0; i < this.#maxClients; i += 1) {
@@ -140,12 +165,6 @@ export class GeneLSTM {
         console.log('###');
     }
 
-    #mutate() {
-        this.#clients.forEach(client => {
-            client.mutate();
-        });
-    }
-
     evolve(optimization = false, error?: number) {
         if (this.#lastError === error) {
             this.#sameErrorEpoch += 1;
@@ -153,16 +172,117 @@ export class GeneLSTM {
             this.#sameErrorEpoch = 0;
         }
         this.#lastError = error;
-        // this.#evolveCounts++;
-        // this.#optimization = optimization || this.#evolveCounts % 10 === 0;
-        // this.#normalizeScore();
-        // this.#genSpecies();
-        // this.#kill();
-        // this.#removeExtinct();
-        // this.#reproduce();
+        this.#evolveCounts++;
+        this.#optimization = optimization || this.#evolveCounts % 10 === 0;
+        this.#normalizeScore();
+        this.#genSpecies();
+        this.#kill();
+        this.#removeExtinct();
+        this.#reproduce();
         this.#mutate();
-        // for (let i = 0; i < this.#clients.length; i += 1) {
-        //     this.#clients[i].generateCalculator();
-        // }
+    }
+
+    #normalizeScore() {
+        let maxScore = 0;
+        const bestScoreSet = [];
+        let minScore = Infinity;
+
+        for (let i = 0; i < this.#clients.length; i += 1) {
+            const item = this.#clients[i];
+            item.bestScore = false;
+            maxScore = item.score > maxScore ? item.score : maxScore;
+            minScore = item.score < minScore ? item.score : minScore;
+        }
+
+        for (let i = 0; i < this.#clients.length; i += 1) {
+            const item = this.#clients[i];
+            if (item.score === maxScore) {
+                bestScoreSet.push(i);
+                item.bestScore = true;
+                item.score = 1;
+            } else if (item.score === minScore) {
+                item.score = 0;
+            } else {
+                item.score = (item.score - minScore) / (maxScore - minScore);
+            }
+        }
+
+        if (bestScoreSet.length > 1) {
+            bestScoreSet.forEach((i, index) => {
+                if (index === 0) return;
+                this.#clients[i].bestScore = false;
+            });
+        }
+
+        const cof = this.#optimization ? 0.1 : 0.0001;
+
+        this.#clients.forEach(item => {
+            const allLayers = item.genome.lstmArray.length;
+            item.score -= Math.sqrt(Math.sqrt(allLayers)) * cof;
+        });
+    }
+
+    #genSpecies() {
+        for (let i = 0; i < this.#species.length; i += 1) {
+            this.#species[i].reset();
+        }
+        for (let i = 0; i < this.#clients.length; i += 1) {
+            const c = this.#clients[i];
+            if (c.species !== null) {
+                continue;
+            }
+
+            let found = false;
+            for (let k = 0; k < this.#species.length; k += 1) {
+                const s = this.#species[k];
+                if (s.put(c)) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                this.#species.push(new Species(c));
+            }
+        }
+        for (let i = 0; i < this.#species.length; i += 1) {
+            this.#species[i].evaluateScore();
+        }
+    }
+
+    #kill() {
+        for (let i = 0; i < this.#species.length; i += 1) {
+            this.#species[i].kill(this.#SURVIVORS);
+        }
+    }
+
+    #removeExtinct() {
+        for (let i = this.#species.length - 1; i >= 0; i--) {
+            if (this.#species[i].size() <= 1 && !this.#species[i].clients[0]?.bestScore && this.#species.length > 1) {
+                this.#species[i].goExtinct();
+                this.#species.splice(i, 1);
+            }
+        }
+    }
+
+    #reproduce() {
+        const selector = new RandomSelector(this.#SURVIVORS);
+        for (let i = 0; i < this.#species.length; i += 1) {
+            selector.add(this.#species[i]);
+        }
+        for (let i = 0; i < this.#clients.length; i += 1) {
+            const c = this.#clients[i];
+            if (c.species === null) {
+                const s = selector.random();
+                c.genome = s.breed();
+                s.put(c, true);
+            }
+        }
+        selector.reset();
+    }
+
+    #mutate() {
+        this.#clients.forEach(client => {
+            client.mutate();
+        });
     }
 }

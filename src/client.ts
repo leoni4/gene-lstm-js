@@ -34,6 +34,9 @@ export class Client {
     get genome() {
         return this.#genome;
     }
+    set genome(genome: Genome) {
+        this.#genome = genome;
+    }
 
     set species(species: Species | null) {
         this.#species = species;

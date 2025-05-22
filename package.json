@@ -4,6 +4,7 @@
     "description": "",
     "main": "index.js",
     "scripts": {
+        "testData": "node ./out/tests/testData.js",
         "usage": "nodemon ./out/tests/usage.js",
         "start": "nodemon index.js",
         "build": "webpack",

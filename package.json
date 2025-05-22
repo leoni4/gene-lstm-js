@@ -6,6 +6,7 @@
     "scripts": {
         "testData": "node ./out/tests/testData.js",
         "usage": "nodemon ./out/tests/usage.js",
+        "usageActual": "nodemon ./out/tests/usageActual.js",
         "start": "nodemon index.js",
         "build": "webpack",
         "build:tsc": "tsc",

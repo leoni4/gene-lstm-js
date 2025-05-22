@@ -152,7 +152,11 @@ export class GeneLSTM {
     }
 
     printSpecies() {
-        console.log('### Species:', this.#species.length);
+        console.log(
+            '### Species:',
+            this.#species.length,
+            this.#clients.reduce((acc, c) => c.genome.lstmArray.length + acc, 0),
+        );
         for (let i = 0; i < this.#species.length; i += 1) {
             console.log(this.#species[i].score, this.#species[i].size());
         }

@@ -19,7 +19,7 @@ interface GeneLSTMOptions {
     WEIGHT_RANDOM_STRENGTH?: number;
     PROBABILITY_MUTATE_WEIGHT_SHIFT?: number;
     PROBABILITY_MUTATE_WEIGHT_RANDOM?: number;
-    PROBABILITY_MUTATE_NEW_LSTM?: number;
+    PROBABILITY_MUTATE_LSTM_BLOCK?: number;
     loadData?: GeneOptions;
 }
 
@@ -47,7 +47,7 @@ export class GeneLSTM {
     #PROBABILITY_MUTATE_WEIGHT_SHIFT: number;
     #PROBABILITY_MUTATE_WEIGHT_RANDOM: number;
 
-    #PROBABILITY_MUTATE_NEW_LSTM: number;
+    #PROBABILITY_MUTATE_LSTM_BLOCK: number;
 
     #evolveCounts = 0;
     #optimization = false;
@@ -55,10 +55,10 @@ export class GeneLSTM {
     constructor(clients: number, options?: GeneLSTMOptions) {
         this.#maxClients = clients;
 
-        this.#CP = options?.CP ?? 3.0;
+        this.#CP = options?.CP ?? 1.0;
         this.#C1 = options?.C1 ?? 1.0;
         this.#C2 = options?.C2 ?? 0.4;
-        this.#SURVIVORS = options?.SURVIVORS ?? 0.2;
+        this.#SURVIVORS = options?.SURVIVORS ?? 0.8;
         this.#MUTATION_RATE = options?.MUTATION_RATE ?? 0.05;
         this.#BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH ?? 0.2;
         this.#BIAS_RANDOM_STRENGTH = options?.BIAS_RANDOM_STRENGTH ?? 1.0;
@@ -69,7 +69,7 @@ export class GeneLSTM {
         this.#PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM ?? 0.1;
         this.#PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.8;
         this.#PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM ?? 0.1;
-        this.#PROBABILITY_MUTATE_NEW_LSTM = options?.PROBABILITY_MUTATE_NEW_LSTM ?? 0.05;
+        this.#PROBABILITY_MUTATE_LSTM_BLOCK = options?.PROBABILITY_MUTATE_LSTM_BLOCK ?? 0.05;
 
         this.#init(options?.loadData);
     }
@@ -116,8 +116,8 @@ export class GeneLSTM {
     get PROBABILITY_MUTATE_WEIGHT_RANDOM() {
         return this.#PROBABILITY_MUTATE_WEIGHT_RANDOM;
     }
-    get PROBABILITY_MUTATE_NEW_LSTM() {
-        return this.#PROBABILITY_MUTATE_NEW_LSTM;
+    get PROBABILITY_MUTATE_LSTM_BLOCK() {
+        return this.#PROBABILITY_MUTATE_LSTM_BLOCK;
     }
 
     get clients() {

@@ -52,7 +52,9 @@ const train = (glstm: GeneLSTM, data: any) => {
 };
 
 const usetraining = async () => {
-    const glstm = new GeneLSTM(100);
+    const glstm = new GeneLSTM(100, {
+        // MUTATION_RATE: 10,
+    });
     glstm.printSpecies();
 
     console.log('---- START TRAIN -----');

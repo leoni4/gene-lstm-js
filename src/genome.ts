@@ -69,7 +69,7 @@ export class Genome {
         this.#lstmArray.forEach(lstm => {
             lstm.mutate();
         });
-        if (this.#glstm.PROBABILITY_MUTATE_NEW_LSTM > Math.random()) {
+        if (this.#glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this.#glstm.MUTATION_RATE > Math.random()) {
             if (Math.random() > 0.5 && this.#lstmArray.length > 1) {
                 this.#lstmArray.pop();
             } else {

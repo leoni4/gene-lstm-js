@@ -212,11 +212,11 @@ export class GeneLSTM {
             });
         }
 
-        const cof = this.#optimization ? 0.1 : 0.0001;
+        const cof = this.#optimization ? 0.1 : 0.001;
 
         this.#clients.forEach(item => {
             const allLayers = item.genome.lstmArray.length;
-            item.score -= Math.sqrt(Math.sqrt(allLayers)) * cof;
+            item.score -= (Math.sqrt(Math.sqrt(allLayers)) - 1) * cof;
         });
     }
 

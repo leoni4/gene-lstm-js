@@ -68,5 +68,7 @@ const usetraining = async () => {
     const out = c.calculate(finalData.input);
     console.log('out', finalData.decode(out[0]), `// should be ${finalData.actual}`);
     console.log('---- ----------- -----');
+    console.log('-- MODEL --');
+    console.log(glstm.model());
 };
 usetraining();

@@ -159,10 +159,11 @@ export class GeneLSTM {
         console.log(
             '### Species:',
             this.#species.length,
+            '# Complecity:',
             this.#clients.reduce((acc, c) => c.genome.lstmArray.length + acc, 0),
         );
         for (let i = 0; i < this.#species.length; i += 1) {
-            console.log(this.#species[i].score, this.#species[i].size());
+            console.log('#', this.#species[i].score, this.#species[i].size());
         }
         console.log('###');
     }

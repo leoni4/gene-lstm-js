@@ -151,6 +151,10 @@ export class GeneLSTM {
         }
     }
 
+    model() {
+        return this.#clients[0].genome.lstmArray.map(l => l.model());
+    }
+
     printSpecies() {
         console.log(
             '### Species:',

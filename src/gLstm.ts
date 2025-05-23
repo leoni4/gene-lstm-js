@@ -218,6 +218,9 @@ export class GeneLSTM {
             const allLayers = item.genome.lstmArray.length;
             item.score -= (Math.sqrt(Math.sqrt(allLayers)) - 1) * cof;
         });
+        this.#clients.sort((a, b) => {
+            return a.score > b.score ? -1 : 1;
+        });
     }
 
     #genSpecies() {

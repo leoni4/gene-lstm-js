@@ -221,7 +221,7 @@ export class GeneLSTM {
             return a.score > b.score ? -1 : 1;
         });
 
-        const cof = this.#optimization ? 0.1 : 0.001;
+        const cof = this.#optimization ? 0.1 : 0.01;
 
         this.#clients.forEach(item => {
             const allLayers = item.genome.lstmArray.length;

@@ -217,14 +217,15 @@ export class GeneLSTM {
             });
         }
 
+        this.#clients.sort((a, b) => {
+            return a.score > b.score ? -1 : 1;
+        });
+
         const cof = this.#optimization ? 0.1 : 0.001;
 
         this.#clients.forEach(item => {
             const allLayers = item.genome.lstmArray.length;
             item.score -= (Math.sqrt(Math.sqrt(allLayers)) - 1) * cof;
-        });
-        this.#clients.sort((a, b) => {
-            return a.score > b.score ? -1 : 1;
         });
     }
 

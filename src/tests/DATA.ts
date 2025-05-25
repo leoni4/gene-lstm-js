@@ -9950,3 +9950,50 @@ export const topModel = [
         },
     },
 ];
+
+export const topModel2 = [
+    {
+        forgetGate: {
+            weight1: -1.3338827954318964,
+            weight2: -5.771869868014357,
+            bias: 1.1628356727632678,
+        },
+        potentialLongToRem: {
+            weight1: 2.492118461662736,
+            weight2: 0.5250340827511777,
+            bias: 0.194466515453518,
+        },
+        potentialLongMemory: {
+            weight1: -2.0988034039235406,
+            weight2: -0.6718567483402387,
+            bias: 0.02815460758124686,
+        },
+        shortMemoryToRemember: {
+            weight1: 5.826412551263786,
+            weight2: 1.0127694301249535,
+            bias: -0.20947278110259243,
+        },
+    },
+    {
+        forgetGate: {
+            weight1: 1.8985488044407168,
+            weight2: 0.8527247145356903,
+            bias: -0.44148859654101236,
+        },
+        potentialLongToRem: {
+            weight1: -1.380995448153914,
+            weight2: -3.2982675649646516,
+            bias: 0.29973166186878747,
+        },
+        potentialLongMemory: {
+            weight1: -1.405333078506479,
+            weight2: 1.3609342886795734,
+            bias: 0.0240680349796627,
+        },
+        shortMemoryToRemember: {
+            weight1: 0.5591926345090331,
+            weight2: -2.946727473739703,
+            bias: 0.8541667963008783,
+        },
+    },
+];

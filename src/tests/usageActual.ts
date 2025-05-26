@@ -25,7 +25,11 @@ const train = (glstm: GeneLSTM, data: any) => {
                     const out = client.calculate(input)[0];
                     localError += Math.abs(out - output);
                     if (Math.sign(out) !== Math.sign(output)) {
-                        localError += 1;
+                        if (Math.sign(out) > 0 && Math.sign(output) < 0) {
+                            localError += 1.5;
+                        } else {
+                            localError += 0.5;
+                        }
                     }
                     if (iter % 1000 === 0) {
                         await sleep(0);

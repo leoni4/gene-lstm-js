@@ -62,41 +62,58 @@ const logResults = async (glstm: GeneLSTM, data: typeof testData) => {
     const client = glstm.clients[0];
     let localError = 0; // MAE (scaled)
     let mapeTotal = 0; // MAPE (%)
-    let correctDirection = 0; // directional accuracy
-    let iter = 0;
+    let correctDirection = 0;
+
+    let TP = 0; // true positive: predicted ↑, actual ↑
+    let TN = 0; // true negative: predicted ↓, actual ↓
+    let FP = 0; // false positive: predicted ↑, actual ↓
+    let FN = 0; // false negative: predicted ↓, actual ↑
 
     for (let t = 0; t < data.length; t++) {
         const input = data[t].input;
         const target = data[t].target;
         const decode = data[t].decode;
 
-        iter++;
-
         const out = client.calculate(input)[0];
         localError += Math.abs(out - target); // MAE
 
-        // MAPE: сравниваем реальные цены
         const predictedPrice = decode(out);
         const actualPrice = decode(target);
         mapeTotal += Math.abs((actualPrice - predictedPrice) / actualPrice);
 
-        // Directional accuracy
-        if (Math.sign(out) === Math.sign(target)) {
+        const predSign = Math.sign(out);
+        const realSign = Math.sign(target);
+
+        if (predSign === realSign) {
             correctDirection++;
         }
 
-        if (iter % 1000 === 0) {
-            await sleep(0); // не блокирует основной поток
+        if (realSign > 0 && predSign > 0) TP++;
+        else if (realSign < 0 && predSign < 0) TN++;
+        else if (realSign < 0 && predSign > 0) FP++;
+        else if (realSign > 0 && predSign < 0) FN++;
+
+        if (t % 1000 === 0) {
+            await sleep(0);
         }
     }
 
-    const mae = localError / data.length;
-    const mape = (mapeTotal / data.length) * 100;
-    const directionalAccuracy = (correctDirection / data.length) * 100;
+    const total = data.length;
+    const mae = localError / total;
+    const mape = (mapeTotal / total) * 100;
+    const directionalAccuracy = (correctDirection / total) * 100;
+
+    const precision = TP + FP === 0 ? 0 : TP / (TP + FP);
+    const recall = TP + FN === 0 ? 0 : TP / (TP + FN);
+    const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
 
     console.log('MAE (scaled):', mae.toFixed(6));
     console.log('MAPE (%):', mape.toFixed(2));
     console.log('Directional Accuracy (%):', directionalAccuracy.toFixed(2));
+    console.log('TP:', TP, 'FP:', FP, 'TN:', TN, 'FN:', FN);
+    console.log('Precision (for UP):', (precision * 100).toFixed(2) + '%');
+    console.log('Recall (for UP):', (recall * 100).toFixed(2) + '%');
+    console.log('F1-score:', (f1 * 100).toFixed(2) + '%');
 };
 
 const usetraining = async () => {
@@ -121,15 +138,18 @@ const usetraining = async () => {
     console.log(glstm.model());
 };
 
-const useTest = () => {
+const useTest = async () => {
+    console.log('---- LOG -----');
+
     const glstm = new GeneLSTM(1, {
         loadData: topModel3,
     });
     const data = generateSlidingWindows(testData, 90);
-    logResults(glstm, data);
+    await logResults(glstm, data);
+    console.log('----     -----');
 };
 
-const test = false;
+const test = true;
 
 if (test) {
     useTest();

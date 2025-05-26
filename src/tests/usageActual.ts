@@ -1,6 +1,6 @@
 import { GeneLSTM } from '../index';
 import { generateSlidingWindows } from './convertData';
-import { testData, topModel3 } from './DATA';
+import { testData, topModel } from './DATA';
 
 const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
 
@@ -8,6 +8,7 @@ const train = (glstm: GeneLSTM, data: any) => {
     let epoch = 0;
     let iter = 0;
     let bestClient: any;
+    let time = Date.now();
     const EPOCHS = 1000;
     return new Promise(resolve => {
         const session = async () => {
@@ -26,9 +27,9 @@ const train = (glstm: GeneLSTM, data: any) => {
                     localError += Math.abs(out - output);
                     if (Math.sign(out) !== Math.sign(output)) {
                         if (Math.sign(out) > 0 && Math.sign(output) < 0) {
-                            localError += 1.5;
+                            localError += 1.3;
                         } else {
-                            localError += 0.5;
+                            localError += 1.2;
                         }
                     }
                     if (iter % 1000 === 0) {
@@ -47,8 +48,10 @@ const train = (glstm: GeneLSTM, data: any) => {
             if (epoch % 10 === 0) {
                 glstm.printSpecies();
             }
-            if (epoch % 100 === 0) {
+            if (epoch % 100 === 0 || Date.now() - time > 1000 * 60 * 15) {
+                time = Date.now();
                 logResults(glstm, data);
+                printModel(glstm);
             }
 
             if (epoch >= EPOCHS || error < 0.01) {
@@ -120,40 +123,53 @@ const logResults = async (glstm: GeneLSTM, data: typeof testData) => {
     console.log('F1-score:', (f1 * 100).toFixed(2) + '%');
 };
 
-const usetraining = async () => {
-    const glstm = new GeneLSTM(500, {
-        // MUTATION_RATE: 10,
-        loadData: topModel3,
-    });
-    glstm.printSpecies();
-
-    console.log('---- START TRAIN -----');
-    await train(glstm, generateSlidingWindows(testData, 90));
-    console.log('---- END TRAIN -----');
-
-    const c = glstm.clients[0];
-
-    console.log('---- TRAINED -----');
-    const finalData = generateSlidingWindows(testData)[0];
-    const out = c.calculate(finalData.input);
-    console.log('out', finalData.decode(out[0]), `// should be ${finalData.actual}`);
-    console.log('---- ----------- -----');
+const printModel = (glstm: GeneLSTM) => {
     console.log('-- MODEL --');
     console.log(glstm.model());
+};
+
+const usetraining = async () => {
+    const glstm = new GeneLSTM(1000, {
+        MUTATION_RATE: 0.01,
+        loadData: topModel,
+    });
+    let c = glstm.clients[0];
+    glstm.printSpecies();
+
+    const finalData = generateSlidingWindows(testData)[0];
+    const trainData = generateSlidingWindows(testData, 90);
+
+    console.log('---- PRE TRAINED -----');
+    let out = c.calculate(finalData.input);
+    console.log('out', finalData.decode(out[0]), `// should be ${finalData.actual}`);
+    console.log('---- ----------- -----');
+
+    console.log('---- START TRAIN -----');
+    await logResults(glstm, trainData);
+    await train(glstm, trainData);
+    console.log('---- END TRAIN -----');
+
+    c = glstm.clients[0];
+
+    console.log('---- TRAINED -----');
+    out = c.calculate(finalData.input);
+    console.log('out', finalData.decode(out[0]), `// should be ${finalData.actual}`);
+    console.log('---- ----------- -----');
+    printModel(glstm);
 };
 
 const useTest = async () => {
     console.log('---- LOG -----');
 
     const glstm = new GeneLSTM(1, {
-        loadData: topModel3,
+        loadData: topModel,
     });
     const data = generateSlidingWindows(testData, 90);
     await logResults(glstm, data);
     console.log('----     -----');
 };
 
-const test = true;
+const test = false;
 
 if (test) {
     useTest();

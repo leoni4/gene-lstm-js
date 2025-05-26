@@ -9929,140 +9929,24 @@ export const testData = cryptoData.Data.Data.map((item: any) => item.close);
 export const topModel = [
     {
         forgetGate: {
-            weight1: 0.6789212094298481,
-            weight2: -2.2098549181236993,
-            bias: -1.0735932283391794,
+            weight1: 0.14349854909594484,
+            weight2: -0.14364052802996002,
+            bias: -0.2988452236600312,
         },
         potentialLongToRem: {
-            weight1: 2.0755889247643284,
-            weight2: 0.18559779781835625,
-            bias: -0.28251899386704,
+            weight1: -0.625052223625834,
+            weight2: -0.15638928656901355,
+            bias: -0.8037979787728383,
         },
         potentialLongMemory: {
-            weight1: -2.7386057338722973,
-            weight2: -0.6349782741273008,
-            bias: 0.06742855151287827,
+            weight1: -2.8734136596355633,
+            weight2: -1.4238726364791041,
+            bias: -0.046856352040432786,
         },
         shortMemoryToRemember: {
-            weight1: 3.230901162986648,
-            weight2: 0.5459303124878779,
-            bias: -0.6471349717063821,
-        },
-    },
-];
-
-export const topModel2 = [
-    {
-        forgetGate: {
-            weight1: -1.3338827954318964,
-            weight2: -5.771869868014357,
-            bias: 1.1628356727632678,
-        },
-        potentialLongToRem: {
-            weight1: 2.492118461662736,
-            weight2: 0.5250340827511777,
-            bias: 0.194466515453518,
-        },
-        potentialLongMemory: {
-            weight1: -2.0988034039235406,
-            weight2: -0.6718567483402387,
-            bias: 0.02815460758124686,
-        },
-        shortMemoryToRemember: {
-            weight1: 5.826412551263786,
-            weight2: 1.0127694301249535,
-            bias: -0.20947278110259243,
-        },
-    },
-    {
-        forgetGate: {
-            weight1: 1.8985488044407168,
-            weight2: 0.8527247145356903,
-            bias: -0.44148859654101236,
-        },
-        potentialLongToRem: {
-            weight1: -1.380995448153914,
-            weight2: -3.2982675649646516,
-            bias: 0.29973166186878747,
-        },
-        potentialLongMemory: {
-            weight1: -1.405333078506479,
-            weight2: 1.3609342886795734,
-            bias: 0.0240680349796627,
-        },
-        shortMemoryToRemember: {
-            weight1: 0.5591926345090331,
-            weight2: -2.946727473739703,
-            bias: 0.8541667963008783,
-        },
-    },
-];
-
-export const topModel3 = [
-    {
-        forgetGate: {
-            weight1: -1.0525201603933128,
-            weight2: -6.091715274978079,
-            bias: 1.4167873989328565,
-        },
-        potentialLongToRem: {
-            weight1: 1.471067656550846,
-            weight2: 0.5533380514046914,
-            bias: 0.08261405982583246,
-        },
-        potentialLongMemory: {
-            weight1: -2.126825661925487,
-            weight2: -0.903798843442368,
-            bias: -0.032165513979313144,
-        },
-        shortMemoryToRemember: {
-            weight1: 5.848411825319111,
-            weight2: 1.2679449496830286,
-            bias: -0.047739768137161964,
-        },
-    },
-    {
-        forgetGate: {
-            weight1: 2.0872483181107593,
-            weight2: 1.3726869009825051,
-            bias: -0.490653032438932,
-        },
-        potentialLongToRem: {
-            weight1: -0.46959464266202994,
-            weight2: -3.742662373117572,
-            bias: 0.3871446251645325,
-        },
-        potentialLongMemory: {
-            weight1: -1.405333078506479,
-            weight2: 1.2891388039051612,
-            bias: 0.014660268933806496,
-        },
-        shortMemoryToRemember: {
-            weight1: -0.09336502247140202,
-            weight2: -2.822067249407505,
-            bias: 1.1772404084210604,
-        },
-    },
-    {
-        forgetGate: {
-            weight1: 0.6994537637514875,
-            weight2: -0.027037749411192857,
-            bias: -0.25227558147566986,
-        },
-        potentialLongToRem: {
-            weight1: -0.975773478500471,
-            weight2: -0.8093678374681279,
-            bias: 0.8761211232158739,
-        },
-        potentialLongMemory: {
-            weight1: -0.6558955165619851,
-            weight2: 1.0817463923439272,
-            bias: 0.001903208165168202,
-        },
-        shortMemoryToRemember: {
-            weight1: 1.485269601456115,
-            weight2: -0.9657677211191981,
-            bias: -0.2359238169427804,
+            weight1: -0.5305230338092785,
+            weight2: 0.2167485829685546,
+            bias: -0.8751623345513565,
         },
     },
 ];

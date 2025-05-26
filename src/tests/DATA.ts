@@ -9997,3 +9997,72 @@ export const topModel2 = [
         },
     },
 ];
+
+export const topModel3 = [
+    {
+        forgetGate: {
+            weight1: -1.0525201603933128,
+            weight2: -6.091715274978079,
+            bias: 1.4167873989328565,
+        },
+        potentialLongToRem: {
+            weight1: 1.471067656550846,
+            weight2: 0.5533380514046914,
+            bias: 0.08261405982583246,
+        },
+        potentialLongMemory: {
+            weight1: -2.126825661925487,
+            weight2: -0.903798843442368,
+            bias: -0.032165513979313144,
+        },
+        shortMemoryToRemember: {
+            weight1: 5.848411825319111,
+            weight2: 1.2679449496830286,
+            bias: -0.047739768137161964,
+        },
+    },
+    {
+        forgetGate: {
+            weight1: 2.0872483181107593,
+            weight2: 1.3726869009825051,
+            bias: -0.490653032438932,
+        },
+        potentialLongToRem: {
+            weight1: -0.46959464266202994,
+            weight2: -3.742662373117572,
+            bias: 0.3871446251645325,
+        },
+        potentialLongMemory: {
+            weight1: -1.405333078506479,
+            weight2: 1.2891388039051612,
+            bias: 0.014660268933806496,
+        },
+        shortMemoryToRemember: {
+            weight1: -0.09336502247140202,
+            weight2: -2.822067249407505,
+            bias: 1.1772404084210604,
+        },
+    },
+    {
+        forgetGate: {
+            weight1: 0.6994537637514875,
+            weight2: -0.027037749411192857,
+            bias: -0.25227558147566986,
+        },
+        potentialLongToRem: {
+            weight1: -0.975773478500471,
+            weight2: -0.8093678374681279,
+            bias: 0.8761211232158739,
+        },
+        potentialLongMemory: {
+            weight1: -0.6558955165619851,
+            weight2: 1.0817463923439272,
+            bias: 0.001903208165168202,
+        },
+        shortMemoryToRemember: {
+            weight1: 1.485269601456115,
+            weight2: -0.9657677211191981,
+            bias: -0.2359238169427804,
+        },
+    },
+];

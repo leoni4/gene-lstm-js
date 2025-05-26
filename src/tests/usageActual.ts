@@ -1,6 +1,6 @@
 import { GeneLSTM } from '../index';
 import { generateSlidingWindows } from './convertData';
-import { testData, topModel2 } from './DATA';
+import { testData, topModel3 } from './DATA';
 
 const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
 
@@ -102,7 +102,7 @@ const logResults = async (glstm: GeneLSTM, data: typeof testData) => {
 const usetraining = async () => {
     const glstm = new GeneLSTM(500, {
         // MUTATION_RATE: 10,
-        loadData: topModel2,
+        loadData: topModel3,
     });
     glstm.printSpecies();
 
@@ -123,7 +123,7 @@ const usetraining = async () => {
 
 const useTest = () => {
     const glstm = new GeneLSTM(1, {
-        loadData: topModel2,
+        loadData: topModel3,
     });
     const data = generateSlidingWindows(testData, 90);
     logResults(glstm, data);

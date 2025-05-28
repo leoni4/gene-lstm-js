@@ -11,9 +11,9 @@ export default [
     {
         entry: './src/index.ts', // Adjust to your entry file
         output: {
-            filename: 'neatjs.umd.js',
+            filename: 'glstmjs.umd.js',
             path: path.resolve(__dirname, 'dist'),
-            library: 'neatjs', // Global variable name for CDN usage
+            library: 'glstmjs', // Global variable name for CDN usage
             libraryTarget: 'umd',
             globalObject: 'this', // Compatibility for Node.js and browser
         },
@@ -35,7 +35,7 @@ export default [
     {
         entry: './src/index.ts', // Adjust to your entry file
         output: {
-            filename: 'neatjs.esm.js',
+            filename: 'glstmjs.esm.js',
             path: path.resolve(__dirname, 'dist'),
             library: {
                 type: 'module',

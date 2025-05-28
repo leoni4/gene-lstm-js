@@ -27,9 +27,9 @@ const train = (glstm: GeneLSTM, data: any) => {
                     localError += Math.abs(out - output);
                     if (Math.sign(out) !== Math.sign(output)) {
                         if (Math.sign(out) > 0 && Math.sign(output) < 0) {
-                            localError += 1.3;
+                            localError += 1;
                         } else {
-                            localError += 1.2;
+                            localError += 1;
                         }
                     }
                     if (iter % 1000 === 0) {
@@ -129,8 +129,8 @@ const printModel = (glstm: GeneLSTM) => {
 };
 
 const usetraining = async () => {
-    const glstm = new GeneLSTM(1000, {
-        MUTATION_RATE: 0.01,
+    const glstm = new GeneLSTM(300, {
+        //  MUTATION_RATE: 1,
         loadData: topModel,
     });
     let c = glstm.clients[0];

@@ -2,7 +2,7 @@
     "name": "lstm",
     "version": "1.0.0",
     "description": "",
-    "main": "index.js",
+    "main": "./dist/neat.min.js",
     "scripts": {
         "testData": "node ./out/tests/testData.js",
         "usage": "nodemon ./out/tests/usage.js",

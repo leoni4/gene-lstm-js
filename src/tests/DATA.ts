@@ -9929,24 +9929,24 @@ export const testData = cryptoData.Data.Data.map((item: any) => item.close);
 export const topModel = [
     {
         forgetGate: {
-            weight1: 0.7441333630930481,
-            weight2: -1.765945016951329,
-            bias: -0.41719653523623085,
+            weight1: 1.490776163778244,
+            weight2: -2.5476843148116877,
+            bias: -0.5332553284158368,
         },
         potentialLongToRem: {
-            weight1: 0.17222436668880614,
-            weight2: -0.37079496790112804,
-            bias: -0.8987587528807809,
+            weight1: 0.9528312419637407,
+            weight2: -0.3743612007384822,
+            bias: -0.9289653271684555,
         },
         potentialLongMemory: {
-            weight1: -2.9632911953720407,
+            weight1: -3.0861074060886264,
             weight2: -1.3879194238855856,
             bias: -0.046856352040432786,
         },
         shortMemoryToRemember: {
-            weight1: 1.0139096139980428,
-            weight2: 0.40256018484251577,
-            bias: -0.9391496281586112,
+            weight1: 2.0796847016823814,
+            weight2: 0.5881721845092202,
+            bias: -1.0663621735828048,
         },
     },
 ];

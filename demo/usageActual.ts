@@ -1,6 +1,6 @@
-import { GeneLSTM } from '../index';
-import { generateSlidingWindows } from './convertData';
-import { testData, topModel } from './DATA';
+import { GeneLSTM } from '../src/index.js';
+import { generateSlidingWindows } from './convertData.js';
+import { testData, topModel } from './DATA.js';
 
 const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
 

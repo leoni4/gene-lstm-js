@@ -1,40 +1,79 @@
 {
-    "name": "lstm",
-    "version": "1.0.0",
-    "description": "",
-    "main": "./dist/neat.min.js",
-    "scripts": {
-        "testData": "node ./out/tests/testData.js",
-        "usage": "nodemon ./out/tests/usage.js",
-        "usageActual": "nodemon ./out/tests/usageActual.js",
-        "start": "nodemon index.js",
-        "build": "webpack",
-        "build:tsc": "tsc",
-        "dev": "tsc -w",
-        "lint": "eslint --ext .js,.ts . --ignore-path .eslintignore .",
-        "lint:fix": "eslint --fix --ext .js,.ts . --ignore-path .eslintignore .",
-        "test": "npm run lint && npm run test:unit",
-        "test:unit": "jest --no-cache",
-        "test:unit:watch": "jest --no-cache --watch --coverage=false"
+    "name": "@leoni4/gene-lstm-js",
+    "version": "0.1.0",
+    "description": "LSTM Genetic Neural Network Implementation in TypeScript",
+    "type": "module",
+    "main": "./dist/index.js",
+    "module": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "import": "./dist/index.js",
+            "types": "./dist/index.d.ts"
+        }
     },
-    "author": "leonid lilo",
-    "license": "ISC",
+    "files": [
+        "dist",
+        "README.md",
+        "LICENSE"
+    ],
+    "scripts": {
+        "start": "vite --config vite.config.demo.ts",
+        "build": "tsc",
+        "build:demo": "vite build --config vite.config.demo.ts",
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:esm": "node tests/esm-smoke-test.mjs",
+        "lint": "eslint src tests",
+        "typecheck": "tsc --noEmit",
+        "prepack": "npm run lint && npm run typecheck && npm run test && npm run build && npm run test:esm",
+        "prepare": "npm run build"
+    },
+    "lint-staged": {
+        "*.{ts,js,json,md}": "prettier --write",
+        "*.ts": "eslint --fix"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/leoni4/gene-lstm-js.git"
+    },
+    "keywords": [
+        "lstm",
+        "neural-network",
+        "genetic-algorithm",
+        "evolutionary-algorithm",
+        "reinforcement-learning",
+        "neuroevolution",
+        "artificial-intelligence",
+        "machine-learning",
+        "typescript",
+        "deep-learning",
+        "evolutionary-computation",
+        "cognitive-modeling",
+        "adaptive-systems",
+        "genetic-programming"
+    ],
+    "author": "leoni4",
+    "license": "MIT",
+    "engines": {
+        "node": ">=18"
+    },
+    "publishConfig": {
+        "access": "public"
+    },
     "devDependencies": {
-        "@types/jest": "^29.5.11",
-        "@typescript-eslint/eslint-plugin": "^6.14.0",
-        "@typescript-eslint/parser": "^6.14.0",
-        "canvas": "^2.11.2",
-        "eslint": "^8.55.0",
-        "eslint-config-prettier": "^9.1.0",
-        "express": "^4.18.2",
-        "jest": "^29.7.0",
-        "konva": "^9.2.3",
-        "nodemon": "^3.1.4",
-        "prettier": "^3.1.1",
-        "ts-jest": "^29.1.1",
-        "ts-loader": "^9.5.1",
-        "typescript": "^5.3.3",
-        "webpack": "^5.89.0",
-        "webpack-cli": "^5.1.4"
+        "@typescript-eslint/eslint-plugin": "^8.54.0",
+        "@typescript-eslint/parser": "^8.54.0",
+        "@vitest/coverage-v8": "^4.0.18",
+        "@vitest/ui": "^4.0.18",
+        "eslint": "^9.39.2",
+        "eslint-config-prettier": "^10.1.8",
+        "express": "^5.2.1",
+        "husky": "^9.1.7",
+        "lint-staged": "^16.2.7",
+        "prettier": "^3.8.1",
+        "typescript": "^5.9.3",
+        "vite": "^7.3.1",
+        "vitest": "^4.0.18"
     }
 }

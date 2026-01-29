@@ -1,4 +1,5 @@
 out
+.dist
 /logs
 *.log
 npm-debug.log*

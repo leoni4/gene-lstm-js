@@ -1,1 +1,1 @@
-export { GeneLSTM } from './gLstm';
+export { GeneLSTM } from './gLstm.js';

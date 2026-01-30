@@ -1,6 +1,6 @@
-import { GeneLSTM } from '../index';
+import { GeneLSTM } from '../src/index.js';
 
-import type { LstmOptions } from '../types/index';
+import type { LstmOptions } from '../src/types/index.js';
 
 const trainingData = {
     inputs: [
@@ -67,6 +67,7 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
     let iter = 0;
     let bestClient: any;
     const EPOCHS = 1000;
+
     return new Promise(resolve => {
         const session = async () => {
             epoch++;
@@ -98,6 +99,7 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
             }
             if (epoch >= EPOCHS || error < 0.01) {
                 resolve(error);
+
                 return;
             }
             bestClient.bestScore = true;

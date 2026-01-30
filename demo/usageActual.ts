@@ -10,6 +10,7 @@ const train = (glstm: GeneLSTM, data: any) => {
     let bestClient: any;
     let time = Date.now();
     const EPOCHS = 1000;
+
     return new Promise(resolve => {
         const session = async () => {
             epoch++;
@@ -56,6 +57,7 @@ const train = (glstm: GeneLSTM, data: any) => {
 
             if (epoch >= EPOCHS || error < 0.01) {
                 resolve(error);
+
                 return;
             }
             glstm.evolve();

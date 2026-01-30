@@ -1,5 +1,7 @@
-out
-.dist
+dist
+dist-demo
+.plans
+test-imports.mjs
 /logs
 *.log
 npm-debug.log*

@@ -1,5 +1,5 @@
-import { GeneLSTM } from './gLstm';
-import type { LstmOptions } from './types/index';
+import { GeneLSTM } from './gLstm.js';
+import type { LstmOptions } from './types/index.js';
 
 type ActivationName = 'sigmoid' | 'tanh';
 type ActivationFunction = (x: number) => number;

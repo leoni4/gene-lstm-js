@@ -19,7 +19,7 @@
     ],
     "scripts": {
         "start": "vite --config vite.config.demo.ts",
-        "demo": "ts-node --loader ts-node/esm ./demo/usage.ts",
+        "demo": "node --loader ts-node/esm demo/usage.ts",
         "build": "tsc",
         "build:demo": "vite build --config vite.config.demo.ts",
         "test": "vitest run",
@@ -63,6 +63,7 @@
         "access": "public"
     },
     "devDependencies": {
+        "@types/node": "^25.1.0",
         "@typescript-eslint/eslint-plugin": "^8.54.0",
         "@typescript-eslint/parser": "^8.54.0",
         "@vitest/coverage-v8": "^4.0.18",

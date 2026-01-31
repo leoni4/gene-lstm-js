@@ -1,9 +1,9 @@
-import { Client } from './client';
-import { Species } from './species';
-import { Genome } from './genome';
-import { RandomSelector } from './randomSelector';
+import { Client } from './client.js';
+import { Species } from './species.js';
+import { Genome } from './genome.js';
+import { RandomSelector } from './randomSelector.js';
 
-import type { GeneOptions } from './types/index';
+import type { GeneOptions } from './types/index.js';
 
 interface GeneLSTMOptions {
     CP?: number;

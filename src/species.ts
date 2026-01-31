@@ -1,5 +1,5 @@
-import { Client } from './client';
-import { Genome } from './genome';
+import { Client } from './client.js';
+import { Genome } from './genome.js';
 
 export class Species {
     #representative: Client;
@@ -24,8 +24,10 @@ export class Species {
         if (force || client.distance(this.#representative) < this.#representative.genome.glstm.CP) {
             client.species = this;
             this.#clients.push(client);
+
             return true;
         }
+
         return false;
     }
 

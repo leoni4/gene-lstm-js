@@ -1,4 +1,4 @@
-import { Species } from './species';
+import { Species } from './species.js';
 
 export class RandomSelector {
     #objects: Array<Species> = [];

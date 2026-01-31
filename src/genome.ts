@@ -1,6 +1,6 @@
-import { LSTM } from './lstm';
-import { GeneLSTM } from './gLstm';
-import type { GeneOptions, ShortMemory, LstmOptions } from './types/index';
+import { LSTM } from './lstm.js';
+import { GeneLSTM } from './gLstm.js';
+import type { GeneOptions, ShortMemory, LstmOptions } from './types/index.js';
 
 export class Genome {
     #glstm: GeneLSTM;

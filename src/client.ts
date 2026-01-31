@@ -1,5 +1,5 @@
-import { Genome } from './genome';
-import { Species } from './species';
+import { Genome } from './genome.js';
+import { Species } from './species.js';
 
 export class Client {
     #species: Species | null;

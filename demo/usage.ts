@@ -1,6 +1,6 @@
-import { GeneLSTM } from '../src/index.js';
-
+import { GeneLSTM, Client } from '../src/index.js';
 import type { LstmOptions } from '../src/types/index.js';
+import { testLstmSineNext01 } from './problems.js';
 
 const trainingData = {
     inputs: [
@@ -65,7 +65,7 @@ const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
 const train = (glstm: GeneLSTM, data = trainingData) => {
     let epoch = 0;
     let iter = 0;
-    let bestClient: any;
+    let bestClient: Client;
     const EPOCHS = 1000;
 
     return new Promise(resolve => {
@@ -113,9 +113,10 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
 const usetraining = async () => {
     const glstm = new GeneLSTM(100);
     glstm.printSpecies();
-
+    const data = testLstmSineNext01.build();
     console.log('---- START TRAIN -----');
-    await train(glstm, trainingData);
+
+    await train(glstm, data);
     console.log('---- END TRAIN -----');
 
     const c = glstm.clients[0];

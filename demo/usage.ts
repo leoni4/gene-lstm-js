@@ -1,6 +1,14 @@
 import { GeneLSTM, Client } from '../src/index.js';
 import type { LstmOptions } from '../src/types/index.js';
-import { testLstmSineNext01 } from './problems.js';
+import {
+    testLstmSineNext01,
+    testLstmAdding01,
+    testLstmParity01,
+    testLstmTrend01,
+    testLstmWaveMix01,
+} from './problems.js';
+
+console.log(!testLstmSineNext01, !testLstmAdding01, !testLstmParity01, !testLstmTrend01, !testLstmWaveMix01);
 
 const trainingData = {
     inputs: [
@@ -94,7 +102,7 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
                     bestClient = client;
                 }
             }
-            if (epoch % 10 === 0) {
+            if (epoch % 1 === 0) {
                 console.log('Epoch:', epoch, ' Error:', error);
             }
             if (epoch >= EPOCHS || error < 0.01) {

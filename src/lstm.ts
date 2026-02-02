@@ -51,6 +51,7 @@ export class ShortMemoryBlock {
         const inputCalculated = this.#weight2 * input;
         const summ = shortMemoryCalculated + inputCalculated + this.#bias;
         const out = this.#activationFunction(summ);
+
         return out;
     }
 }
@@ -58,6 +59,7 @@ export class ShortMemoryBlock {
 export class OutputBlock {
     calculate(longMemory: number, shortMemory: number) {
         const out = Math.tanh(longMemory) * shortMemory;
+
         return out;
     }
 }
@@ -157,6 +159,7 @@ export class LSTM {
 
         const output = this.#outputGate.calculate(this.#longMemory, potentialShortToRem);
         this.#shortMemory = output;
+
         return output;
     }
 
@@ -170,6 +173,7 @@ export class LSTM {
                 fullSeqMemory.push(this.#shortMemory);
             }
         });
+
         return fullSeq ? fullSeqMemory : [this.#shortMemory];
     }
 

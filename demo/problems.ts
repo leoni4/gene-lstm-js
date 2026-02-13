@@ -148,3 +148,82 @@ export const testLstmWaveMix01 = {
         return { ...this, inputs, outputs };
     },
 } as const;
+
+export const testHierarchicalSegmentXorAdd = {
+    name: 'hierarchical_segment_xor_add',
+    inputs: [] as number[][],
+    outputs: [] as number[],
+    build({
+        samples = 512,
+        seqLen = 40,
+        segLen = 5,
+        threshold = 0.9,
+        noise = 0.05,
+        valueMin = 0.0,
+        valueMax = 1.0,
+        seed = 0,
+    } = {}) {
+        const inputs: number[][] = [];
+        const outputs: number[] = [];
+
+        if (seqLen % segLen !== 0) {
+            throw new Error(`seqLen (${seqLen}) must be divisible by segLen (${segLen})`);
+        }
+
+        const segments = seqLen / segLen;
+
+        let s = seed >>> 0;
+        const rand = () => {
+            s = (1664525 * s + 1013904223) >>> 0;
+
+            return s / 0xffffffff;
+        };
+
+        const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+        const xor = (a: number, b: number) => (a ^ b) & 1;
+
+        for (let sample = 0; sample < samples; sample++) {
+            const sampleVec: number[] = [];
+
+            let finalParity = 0;
+
+            for (let seg = 0; seg < segments; seg++) {
+                let p1 = Math.floor(rand() * segLen);
+                let p2 = Math.floor(rand() * segLen);
+                while (p2 === p1) p2 = Math.floor(rand() * segLen);
+
+                const values: number[] = [];
+                for (let i = 0; i < segLen; i++) {
+                    let v = valueMin + (valueMax - valueMin) * rand();
+
+                    if (noise > 0) {
+                        v += (rand() * 2 - 1) * noise;
+                    }
+
+                    v = clamp01(v);
+                    values.push(v);
+                }
+
+                const localSum = values[p1] + values[p2];
+                const localBit = localSum > threshold ? 1 : 0;
+
+                finalParity = xor(finalParity, localBit);
+
+                for (let i = 0; i < segLen; i++) {
+                    const value = values[i];
+                    const marker = i === p1 || i === p2 ? 1 : 0;
+                    const segStart = i === 0 ? 1 : 0;
+
+                    // flatten: t0[f0,f1,f2], t1[f0,f1,f2], ...
+                    sampleVec.push(value, marker, segStart);
+                }
+            }
+
+            inputs.push(sampleVec);
+            outputs.push(finalParity);
+        }
+
+        return { ...this, inputs, outputs };
+    },
+} as const;

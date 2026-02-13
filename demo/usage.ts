@@ -6,9 +6,17 @@ import {
     testLstmParity01,
     testLstmTrend01,
     testLstmWaveMix01,
+    testHierarchicalSegmentXorAdd,
 } from './problems.js';
 
-console.log(!testLstmSineNext01, !testLstmAdding01, !testLstmParity01, !testLstmTrend01, !testLstmWaveMix01);
+console.log(
+    !testLstmSineNext01,
+    !testLstmAdding01,
+    !testLstmParity01,
+    !testLstmTrend01,
+    !testLstmWaveMix01,
+    !testHierarchicalSegmentXorAdd,
+);
 
 const trainingData = {
     inputs: [
@@ -95,6 +103,7 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
                         await sleep(0);
                     }
                 }
+                localError = localError / data.inputs.length;
                 client.error = localError;
                 client.score = 1 - localError;
                 if (error > localError) {
@@ -104,6 +113,9 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
             }
             if (epoch % 1 === 0) {
                 console.log('Epoch:', epoch, ' Error:', error);
+            }
+            if (epoch % 10 === 0) {
+                glstm.printSpecies();
             }
             if (epoch >= EPOCHS || error < 0.01) {
                 resolve(error);
@@ -121,7 +133,7 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
 const usetraining = async () => {
     const glstm = new GeneLSTM(100);
     glstm.printSpecies();
-    const data = testLstmSineNext01.build();
+    const data = testHierarchicalSegmentXorAdd.build();
     console.log('---- START TRAIN -----');
 
     await train(glstm, data);

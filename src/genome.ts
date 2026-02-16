@@ -3,27 +3,27 @@ import { GeneLSTM } from './gLstm.js';
 import type { GeneOptions, ShortMemory, LstmOptions } from './types/index.js';
 
 export class Genome {
-    #glstm: GeneLSTM;
-    #lstmArray: LSTM[];
+    private _glstm: GeneLSTM;
+    private _lstmArray: LSTM[];
 
     constructor(glstm: GeneLSTM, data?: GeneOptions) {
-        this.#glstm = glstm;
-        this.#lstmArray = [];
+        this._glstm = glstm;
+        this._lstmArray = [];
         if (data) {
             data.forEach(option => {
-                this.#lstmArray.push(new LSTM(this.#glstm, option));
+                this._lstmArray.push(new LSTM(this._glstm, option));
             });
         } else {
-            this.#lstmArray.push(new LSTM(this.#glstm));
+            this._lstmArray.push(new LSTM(this._glstm));
         }
     }
 
     get glstm() {
-        return this.#glstm;
+        return this._glstm;
     }
 
     get lstmArray() {
-        return this.#lstmArray;
+        return this._lstmArray;
     }
 
     distance(g2passed: Genome): number {
@@ -62,28 +62,29 @@ export class Genome {
 
         weightDiff /= similar || 1;
 
-        return this.#glstm.C1 * excess + this.#glstm.C2 * weightDiff;
+        return this._glstm.C1 * excess + this._glstm.C2 * weightDiff;
     }
 
     mutate() {
-        this.#lstmArray.forEach(lstm => {
+        this._lstmArray.forEach(lstm => {
             lstm.mutate();
         });
-        if (this.#glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this.#glstm.MUTATION_RATE > Math.random()) {
-            if (Math.random() > 0.5 && this.#lstmArray.length > 1) {
-                this.#lstmArray.pop();
+        if (this._glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this._glstm.MUTATION_RATE > Math.random()) {
+            if (Math.random() > 0.5 && this._lstmArray.length > 1) {
+                this._lstmArray.pop();
             } else {
-                this.#lstmArray.push(new LSTM(this.#glstm));
+                this._lstmArray.push(new LSTM(this._glstm));
             }
         }
     }
 
     calculate(input: number[]) {
         let inputPassed = input;
-        this.#lstmArray.forEach((lstm, i) => {
-            const localClc = lstm.calculate(inputPassed, this.#lstmArray.length > 1 && this.#lstmArray.length > i + 1);
+        this._lstmArray.forEach((lstm, i) => {
+            const localClc = lstm.calculate(inputPassed, this._lstmArray.length > 1 && this._lstmArray.length > i + 1);
             inputPassed = localClc;
         });
+
         return inputPassed;
     }
 

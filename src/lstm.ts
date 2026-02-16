@@ -9,48 +9,29 @@ function sigmoid(x: number): number {
 }
 
 export class ShortMemoryBlock {
-    #activationName: ActivationName;
-    #activationFunction: ActivationFunction;
-    #weight1: number = 0;
-    #weight2: number = 0;
-    #bias: number = 0;
+    private _activationName: ActivationName;
+    private _activationFunction: ActivationFunction;
+    weight1: number = 0;
+    weight2: number = 0;
+    bias: number = 0;
 
     constructor(activation: ActivationName, weight1?: number, weight2?: number, bias?: number) {
-        this.#activationName = activation;
-        if (this.#activationName === 'sigmoid') {
-            this.#activationFunction = sigmoid;
+        this._activationName = activation;
+        if (this._activationName === 'sigmoid') {
+            this._activationFunction = sigmoid;
         } else {
-            this.#activationFunction = Math.tanh;
+            this._activationFunction = Math.tanh;
         }
-        this.#weight1 = weight1 || Math.random() * 2 - 1;
-        this.#weight2 = weight2 || Math.random() * 2 - 1;
-        this.#bias = bias || Math.random() * 2 - 1;
-    }
-
-    get weight1() {
-        return this.#weight1;
-    }
-    get weight2() {
-        return this.#weight2;
-    }
-    get bias() {
-        return this.#bias;
-    }
-    set weight1(num: number) {
-        this.#weight1 = num;
-    }
-    set weight2(num: number) {
-        this.#weight2 = num;
-    }
-    set bias(num: number) {
-        this.#bias = num;
+        this.weight1 = weight1 || Math.random() * 2 - 1;
+        this.weight2 = weight2 || Math.random() * 2 - 1;
+        this.bias = bias || Math.random() * 2 - 1;
     }
 
     calculate(input: number, shortMemory: number): number {
-        const shortMemoryCalculated = this.#weight1 * shortMemory;
-        const inputCalculated = this.#weight2 * input;
-        const summ = shortMemoryCalculated + inputCalculated + this.#bias;
-        const out = this.#activationFunction(summ);
+        const shortMemoryCalculated = this.weight1 * shortMemory;
+        const inputCalculated = this.weight2 * input;
+        const summ = shortMemoryCalculated + inputCalculated + this.bias;
+        const out = this._activationFunction(summ);
 
         return out;
     }
@@ -65,203 +46,188 @@ export class OutputBlock {
 }
 
 export class LSTM {
-    #geneLstm: GeneLSTM;
+    private _geneLstm: GeneLSTM;
 
-    #longMemory: number = 0;
-    #shortMemory: number = 0;
+    longMemory: number = 0;
+    shortMemory: number = 0;
 
-    #forgetGate: ShortMemoryBlock;
-    #potentialLongToRem: ShortMemoryBlock;
-    #potentialLongMemory: ShortMemoryBlock;
+    private _forgetGate: ShortMemoryBlock;
+    private _potentialLongToRem: ShortMemoryBlock;
+    private _potentialLongMemory: ShortMemoryBlock;
 
-    #shortMemoryToRemember: ShortMemoryBlock;
+    private _shortMemoryToRemember: ShortMemoryBlock;
 
-    #outputGate: OutputBlock;
+    private _outputGate: OutputBlock;
 
     constructor(GeneLSTM: GeneLSTM, options?: LstmOptions) {
-        this.#geneLstm = GeneLSTM;
+        this._geneLstm = GeneLSTM;
         if (options) {
-            this.#forgetGate = new ShortMemoryBlock(
+            this._forgetGate = new ShortMemoryBlock(
                 'sigmoid',
                 options.forgetGate.weight1,
                 options.forgetGate.weight2,
                 options.forgetGate.bias,
             );
-            this.#potentialLongToRem = new ShortMemoryBlock(
+            this._potentialLongToRem = new ShortMemoryBlock(
                 'sigmoid',
                 options.potentialLongToRem.weight1,
                 options.potentialLongToRem.weight2,
                 options.potentialLongToRem.bias,
             );
-            this.#potentialLongMemory = new ShortMemoryBlock(
+            this._potentialLongMemory = new ShortMemoryBlock(
                 'tanh',
                 options.potentialLongMemory.weight1,
                 options.potentialLongMemory.weight2,
                 options.potentialLongMemory.bias,
             );
-            this.#shortMemoryToRemember = new ShortMemoryBlock(
+            this._shortMemoryToRemember = new ShortMemoryBlock(
                 'sigmoid',
                 options.shortMemoryToRemember.weight1,
                 options.shortMemoryToRemember.weight2,
                 options.shortMemoryToRemember.bias,
             );
         } else {
-            this.#forgetGate = new ShortMemoryBlock('sigmoid');
-            this.#potentialLongToRem = new ShortMemoryBlock('sigmoid');
-            this.#potentialLongMemory = new ShortMemoryBlock('tanh');
-            this.#shortMemoryToRemember = new ShortMemoryBlock('sigmoid');
+            this._forgetGate = new ShortMemoryBlock('sigmoid');
+            this._potentialLongToRem = new ShortMemoryBlock('sigmoid');
+            this._potentialLongMemory = new ShortMemoryBlock('tanh');
+            this._shortMemoryToRemember = new ShortMemoryBlock('sigmoid');
         }
-        this.#outputGate = new OutputBlock();
-    }
-
-    set longMemory(num: number) {
-        this.#longMemory = num;
-    }
-
-    set shortMemory(num: number) {
-        this.#shortMemory = num;
-    }
-    get longMemory() {
-        return this.#longMemory;
-    }
-
-    get shortMemory() {
-        return this.#shortMemory;
+        this._outputGate = new OutputBlock();
     }
 
     flattenWeights(): number[] {
         return [
-            this.#forgetGate.weight1,
-            this.#forgetGate.weight2,
-            this.#forgetGate.bias,
-            this.#potentialLongToRem.weight1,
-            this.#potentialLongToRem.weight2,
-            this.#potentialLongToRem.bias,
-            this.#potentialLongMemory.weight1,
-            this.#potentialLongMemory.weight2,
-            this.#potentialLongMemory.bias,
-            this.#shortMemoryToRemember.weight1,
-            this.#shortMemoryToRemember.weight2,
-            this.#shortMemoryToRemember.bias,
+            this._forgetGate.weight1,
+            this._forgetGate.weight2,
+            this._forgetGate.bias,
+            this._potentialLongToRem.weight1,
+            this._potentialLongToRem.weight2,
+            this._potentialLongToRem.bias,
+            this._potentialLongMemory.weight1,
+            this._potentialLongMemory.weight2,
+            this._potentialLongMemory.bias,
+            this._shortMemoryToRemember.weight1,
+            this._shortMemoryToRemember.weight2,
+            this._shortMemoryToRemember.bias,
         ];
     }
 
-    #predictUnit(input: number) {
-        const forgetOut = this.#forgetGate.calculate(input, this.#shortMemory);
-        this.#longMemory *= forgetOut;
+    private _predictUnit(input: number) {
+        const forgetOut = this._forgetGate.calculate(input, this.shortMemory);
+        this.longMemory *= forgetOut;
 
-        const potentialLongToRem = this.#potentialLongToRem.calculate(input, this.#shortMemory);
-        const potentialLong = this.#potentialLongMemory.calculate(input, this.#shortMemory);
+        const potentialLongToRem = this._potentialLongToRem.calculate(input, this.shortMemory);
+        const potentialLong = this._potentialLongMemory.calculate(input, this.shortMemory);
 
-        this.#longMemory += potentialLongToRem * potentialLong;
+        this.longMemory += potentialLongToRem * potentialLong;
 
-        const potentialShortToRem = this.#shortMemoryToRemember.calculate(input, this.#shortMemory);
+        const potentialShortToRem = this._shortMemoryToRemember.calculate(input, this.shortMemory);
 
-        const output = this.#outputGate.calculate(this.#longMemory, potentialShortToRem);
-        this.#shortMemory = output;
+        const output = this._outputGate.calculate(this.longMemory, potentialShortToRem);
+        this.shortMemory = output;
 
         return output;
     }
 
     calculate(input: number[], fullSeq = false): number[] {
-        this.#longMemory = 0;
-        this.#shortMemory = 0;
+        this.longMemory = 0;
+        this.shortMemory = 0;
         const fullSeqMemory: number[] = [];
         input.forEach(num => {
-            this.#predictUnit(num);
+            this._predictUnit(num);
             if (fullSeq) {
-                fullSeqMemory.push(this.#shortMemory);
+                fullSeqMemory.push(this.shortMemory);
             }
         });
 
-        return fullSeq ? fullSeqMemory : [this.#shortMemory];
+        return fullSeq ? fullSeqMemory : [this.shortMemory];
     }
 
     model(): LstmOptions {
         return {
             forgetGate: {
-                weight1: this.#forgetGate.weight1,
-                weight2: this.#forgetGate.weight2,
-                bias: this.#forgetGate.bias,
+                weight1: this._forgetGate.weight1,
+                weight2: this._forgetGate.weight2,
+                bias: this._forgetGate.bias,
             },
             potentialLongToRem: {
-                weight1: this.#potentialLongToRem.weight1,
-                weight2: this.#potentialLongToRem.weight2,
-                bias: this.#potentialLongToRem.bias,
+                weight1: this._potentialLongToRem.weight1,
+                weight2: this._potentialLongToRem.weight2,
+                bias: this._potentialLongToRem.bias,
             },
             potentialLongMemory: {
-                weight1: this.#potentialLongMemory.weight1,
-                weight2: this.#potentialLongMemory.weight2,
-                bias: this.#potentialLongMemory.bias,
+                weight1: this._potentialLongMemory.weight1,
+                weight2: this._potentialLongMemory.weight2,
+                bias: this._potentialLongMemory.bias,
             },
             shortMemoryToRemember: {
-                weight1: this.#shortMemoryToRemember.weight1,
-                weight2: this.#shortMemoryToRemember.weight2,
-                bias: this.#shortMemoryToRemember.bias,
+                weight1: this._shortMemoryToRemember.weight1,
+                weight2: this._shortMemoryToRemember.weight2,
+                bias: this._shortMemoryToRemember.bias,
             },
         };
     }
 
-    #getBlockToMutate(): ShortMemoryBlock {
+    private _getBlockToMutate(): ShortMemoryBlock {
         const blockNum = Math.floor(Math.random() * 4 + 1);
 
-        let block: ShortMemoryBlock = this.#forgetGate;
+        let block: ShortMemoryBlock = this._forgetGate;
         switch (blockNum) {
             case 1:
-                block = this.#forgetGate;
+                block = this._forgetGate;
                 break;
             case 2:
-                block = this.#potentialLongToRem;
+                block = this._potentialLongToRem;
                 break;
             case 3:
-                block = this.#potentialLongMemory;
+                block = this._potentialLongMemory;
                 break;
             case 4:
-                block = this.#shortMemoryToRemember;
+                block = this._shortMemoryToRemember;
                 break;
         }
 
         return block;
     }
 
-    #mutateWeightRandom() {
-        const block = this.#getBlockToMutate();
+    private _mutateWeightRandom() {
+        const block = this._getBlockToMutate();
         const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
 
-        let newWeight = block[weightNum] || this.#geneLstm.WEIGHT_RANDOM_STRENGTH;
+        let newWeight = block[weightNum] || this._geneLstm.WEIGHT_RANDOM_STRENGTH;
         while (newWeight === block[weightNum]) {
-            newWeight = (Math.random() * newWeight * 2 - newWeight) * this.#geneLstm.WEIGHT_RANDOM_STRENGTH;
+            newWeight = (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.WEIGHT_RANDOM_STRENGTH;
         }
         block[weightNum] = newWeight;
     }
 
-    #mutateBiasRandom() {
-        const block = this.#getBlockToMutate();
+    private _mutateBiasRandom() {
+        const block = this._getBlockToMutate();
 
-        let newWeight = block.bias || this.#geneLstm.BIAS_RANDOM_STRENGTH;
+        let newWeight = block.bias || this._geneLstm.BIAS_RANDOM_STRENGTH;
         while (newWeight === block.bias) {
-            newWeight = (Math.random() * newWeight * 2 - newWeight) * this.#geneLstm.BIAS_RANDOM_STRENGTH;
+            newWeight = (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.BIAS_RANDOM_STRENGTH;
         }
         block.bias = newWeight;
     }
 
-    #mutateWeightShift() {
-        const block = this.#getBlockToMutate();
+    private _mutateWeightShift() {
+        const block = this._getBlockToMutate();
 
-        let newWeight = block.bias || this.#geneLstm.WEIGHT_SHIFT_STRENGTH;
+        let newWeight = block.bias || this._geneLstm.WEIGHT_SHIFT_STRENGTH;
         while (newWeight === block.bias) {
-            newWeight = block.bias + (Math.random() * 2 - 1) * this.#geneLstm.WEIGHT_SHIFT_STRENGTH;
+            newWeight = block.bias + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH;
         }
         block.bias = newWeight;
     }
 
-    #mutateBiasShift() {
-        const block = this.#getBlockToMutate();
+    private _mutateBiasShift() {
+        const block = this._getBlockToMutate();
         const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
 
-        let newWeight = block[weightNum] || this.#geneLstm.WEIGHT_SHIFT_STRENGTH;
+        let newWeight = block[weightNum] || this._geneLstm.WEIGHT_SHIFT_STRENGTH;
         while (newWeight === block[weightNum]) {
-            newWeight = block[weightNum] + (Math.random() * 2 - 1) * this.#geneLstm.WEIGHT_SHIFT_STRENGTH;
+            newWeight = block[weightNum] + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH;
         }
         block[weightNum] = newWeight;
     }
@@ -269,28 +235,28 @@ export class LSTM {
     mutate() {
         let prob: number;
 
-        prob = this.#geneLstm.PROBABILITY_MUTATE_WEIGHT_RANDOM * this.#geneLstm.MUTATION_RATE;
+        prob = this._geneLstm.PROBABILITY_MUTATE_WEIGHT_RANDOM * this._geneLstm.MUTATION_RATE;
         while (prob > Math.random()) {
             prob--;
-            this.#mutateWeightRandom();
+            this._mutateWeightRandom();
         }
 
-        prob = this.#geneLstm.PROBABILITY_MUTATE_BIAS_RANDOM * this.#geneLstm.MUTATION_RATE;
+        prob = this._geneLstm.PROBABILITY_MUTATE_BIAS_RANDOM * this._geneLstm.MUTATION_RATE;
         while (prob > Math.random()) {
             prob--;
-            this.#mutateBiasRandom();
+            this._mutateBiasRandom();
         }
 
-        prob = this.#geneLstm.PROBABILITY_MUTATE_WEIGHT_SHIFT * this.#geneLstm.MUTATION_RATE;
+        prob = this._geneLstm.PROBABILITY_MUTATE_WEIGHT_SHIFT * this._geneLstm.MUTATION_RATE;
         while (prob > Math.random()) {
             prob--;
-            this.#mutateWeightShift();
+            this._mutateWeightShift();
         }
 
-        prob = this.#geneLstm.PROBABILITY_MUTATE_BIAS_SHIFT * this.#geneLstm.MUTATION_RATE;
+        prob = this._geneLstm.PROBABILITY_MUTATE_BIAS_SHIFT * this._geneLstm.MUTATION_RATE;
         while (prob > Math.random()) {
             prob--;
-            this.#mutateBiasShift();
+            this._mutateBiasShift();
         }
     }
 }

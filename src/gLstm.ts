@@ -26,6 +26,12 @@ interface GeneLSTMOptions {
     PROBABILITY_REMOVE_BLOCK?: number;
     sleepingBlockConfig?: Partial<SleepingBlockConfig>;
     loadData?: GeneOptions;
+    // Dynamic CP adjustment parameters
+    targetSpecies?: number;
+    cpAdjustRate?: number;
+    cpDeadband?: number;
+    minCP?: number;
+    maxCP?: number;
 }
 
 export class GeneLSTM {
@@ -57,6 +63,13 @@ export class GeneLSTM {
     private _PROBABILITY_REMOVE_BLOCK: number;
 
     private _sleepingBlockConfig: SleepingBlockConfig;
+
+    // Dynamic CP adjustment parameters
+    private _targetSpecies: number;
+    private _cpAdjustRate: number;
+    private _cpDeadband: number;
+    private _minCP: number;
+    private _maxCP: number;
 
     private _evolveCounts = 0;
     private _optimization = false;
@@ -94,6 +107,13 @@ export class GeneLSTM {
             initialAlpha: 0.01,
             ...options?.sleepingBlockConfig,
         };
+
+        // Dynamic CP adjustment parameters
+        this._targetSpecies = options?.targetSpecies ?? 8;
+        this._cpAdjustRate = options?.cpAdjustRate ?? 0.02;
+        this._cpDeadband = options?.cpDeadband ?? 1;
+        this._minCP = options?.minCP ?? 0.1;
+        this._maxCP = options?.maxCP ?? 10.0;
 
         this._init(options?.loadData);
     }
@@ -207,11 +227,59 @@ export class GeneLSTM {
         console.log('###');
     }
 
+    /**
+     * Dynamically adjusts the compatibility parameter (CP) to maintain species count near target.
+     * Higher CP → species merge more easily → fewer species
+     * Lower CP → species split more easily → more species
+     *
+     * @param speciesCount Current number of species
+     * @param generation Optional generation number for logging
+     */
+    adjustCP(speciesCount: number, generation?: number): void {
+        const cpBefore = this._CP;
+        const error = speciesCount - this._targetSpecies;
+
+        // Deadband: don't adjust if within acceptable range
+        if (Math.abs(error) <= this._cpDeadband) {
+            if (generation !== undefined) {
+                console.log(
+                    `[Gen ${generation}] CP: ${this._CP.toFixed(4)} | Species: ${speciesCount}/${this._targetSpecies} (within deadband ±${this._cpDeadband}) | No adjustment`,
+                );
+            }
+
+            return;
+        }
+
+        // Calculate adjustment factor
+        // Positive error (too many species) → increase CP
+        // Negative error (too few species) → decrease CP
+        const errorRatio = error / this._targetSpecies;
+        const adjustmentFactor = 1 + this._cpAdjustRate * errorRatio;
+
+        // Apply multiplicative adjustment
+        this._CP *= adjustmentFactor;
+
+        // Clamp to valid range
+        this._CP = Math.max(this._minCP, Math.min(this._maxCP, this._CP));
+
+        // Debug logging
+        if (generation !== undefined) {
+            const direction = error > 0 ? '↑ INCREASE' : '↓ DECREASE';
+            console.log(
+                `[Gen ${generation}] CP: ${cpBefore.toFixed(4)} → ${this._CP.toFixed(4)} (${direction}) | Species: ${speciesCount}/${this._targetSpecies} | Error: ${error > 0 ? '+' : ''}${error}`,
+            );
+        }
+    }
+
     evolve(optimization = false) {
         this._evolveCounts++;
         this._optimization = optimization || this._evolveCounts % 10 === 0;
         this._normalizeScore();
         this._genSpecies();
+
+        // Dynamically adjust CP based on current species count
+        this.adjustCP(this._species.length, this._evolveCounts);
+
         this._kill();
         this._removeExtinct();
         this._reproduce();

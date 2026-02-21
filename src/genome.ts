@@ -35,7 +35,7 @@ export class Genome {
         }
 
         let excess = 0;
-        let weightDiff = 0;
+        let weightDiffSum = 0;
         let similar = 0;
 
         const maxLen = Math.max(g1.lstmArray.length, g2.lstmArray.length);
@@ -49,18 +49,20 @@ export class Genome {
                 const w2 = block2.flattenWeights();
 
                 const len = Math.min(w1.length, w2.length);
+                let blockDiffSum = 0;
                 for (let j = 0; j < len; j++) {
-                    weightDiff += Math.abs(w1[j] - w2[j]);
+                    blockDiffSum += Math.abs(w1[j] - w2[j]);
                 }
 
-                weightDiff /= len || 1;
+                const blockDiff = blockDiffSum / (len || 1);
+                weightDiffSum += blockDiff;
                 similar++;
             } else {
                 excess++;
             }
         }
 
-        weightDiff /= similar || 1;
+        const weightDiff = weightDiffSum / (similar || 1);
 
         return this._glstm.C1 * excess + this._glstm.C2 * weightDiff;
     }

@@ -3,7 +3,7 @@ import { Species } from './species.js';
 import { Genome } from './genome.js';
 import { RandomSelector } from './randomSelector.js';
 
-import type { GeneOptions } from './types/index.js';
+import type { GeneOptions, SleepingBlockConfig } from './types/index.js';
 
 interface GeneLSTMOptions {
     CP?: number;
@@ -20,6 +20,9 @@ interface GeneLSTMOptions {
     PROBABILITY_MUTATE_WEIGHT_SHIFT?: number;
     PROBABILITY_MUTATE_WEIGHT_RANDOM?: number;
     PROBABILITY_MUTATE_LSTM_BLOCK?: number;
+    PROBABILITY_ADD_BLOCK_APPEND?: number;
+    PROBABILITY_REMOVE_BLOCK?: number;
+    sleepingBlockConfig?: Partial<SleepingBlockConfig>;
     loadData?: GeneOptions;
 }
 
@@ -46,6 +49,10 @@ export class GeneLSTM {
     private _PROBABILITY_MUTATE_WEIGHT_RANDOM: number;
 
     private _PROBABILITY_MUTATE_LSTM_BLOCK: number;
+    private _PROBABILITY_ADD_BLOCK_APPEND: number;
+    private _PROBABILITY_REMOVE_BLOCK: number;
+
+    private _sleepingBlockConfig: SleepingBlockConfig;
 
     private _evolveCounts = 0;
     private _optimization = false;
@@ -68,6 +75,19 @@ export class GeneLSTM {
         this._PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.8;
         this._PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM ?? 0.1;
         this._PROBABILITY_MUTATE_LSTM_BLOCK = options?.PROBABILITY_MUTATE_LSTM_BLOCK ?? 0.05;
+        this._PROBABILITY_ADD_BLOCK_APPEND = options?.PROBABILITY_ADD_BLOCK_APPEND ?? 0.92;
+        this._PROBABILITY_REMOVE_BLOCK = options?.PROBABILITY_REMOVE_BLOCK ?? 0.1;
+
+        // Configure sleeping block initialization for non-destructive mutations
+        this._sleepingBlockConfig = {
+            epsilon: 0.002,
+            forgetBias: 1.5,
+            inputBias: -1.5,
+            outputBias: 0.0,
+            candidateBias: 0.0,
+            initialAlpha: 0.01,
+            ...options?.sleepingBlockConfig,
+        };
 
         this._init(options?.loadData);
     }
@@ -116,6 +136,15 @@ export class GeneLSTM {
     }
     get PROBABILITY_MUTATE_LSTM_BLOCK() {
         return this._PROBABILITY_MUTATE_LSTM_BLOCK;
+    }
+    get PROBABILITY_ADD_BLOCK_APPEND() {
+        return this._PROBABILITY_ADD_BLOCK_APPEND;
+    }
+    get PROBABILITY_REMOVE_BLOCK() {
+        return this._PROBABILITY_REMOVE_BLOCK;
+    }
+    get sleepingBlockConfig() {
+        return this._sleepingBlockConfig;
     }
 
     get clients() {

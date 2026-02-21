@@ -65,15 +65,87 @@ export class Genome {
         return this._glstm.C1 * excess + this._glstm.C2 * weightDiff;
     }
 
+    /**
+     * Creates a "sleeping block" - a new LSTM block initialized to be nearly transparent
+     * to preserve the parent's learned behavior during structural mutations
+     */
+    private _createSleepingBlock(): LSTM {
+        const config = this._glstm.sleepingBlockConfig;
+        const epsilon = config.epsilon;
+
+        // Helper to generate small random weights
+        const randomSmall = () => Math.random() * 2 * epsilon - epsilon;
+
+        const options: LstmOptions = {
+            // Forget gate: high bias -> remember everything (f_t ≈ 0.82)
+            forgetGate: {
+                weight1: randomSmall(),
+                weight2: randomSmall(),
+                bias: config.forgetBias,
+            },
+            // Input gate: low bias -> write very little (i_t ≈ 0.18)
+            potentialLongToRem: {
+                weight1: randomSmall(),
+                weight2: randomSmall(),
+                bias: config.inputBias,
+            },
+            // Candidate: neutral bias (g_t ≈ 0)
+            potentialLongMemory: {
+                weight1: randomSmall(),
+                weight2: randomSmall(),
+                bias: config.candidateBias,
+            },
+            // Output gate: neutral bias (o_t ≈ 0.5)
+            shortMemoryToRemember: {
+                weight1: randomSmall(),
+                weight2: randomSmall(),
+                bias: config.outputBias,
+            },
+            // Skip connection: start very small (block outputs ≈ input initially)
+            alpha: config.initialAlpha,
+        };
+
+        return new LSTM(this._glstm, options);
+    }
+
+    /**
+     * Structural mutation with directional bias:
+     * - 92% chance to APPEND (add to end) - preserves learned representations
+     * - 8% chance to PREPEND (add to beginning) - explores new input transformations
+     * - 10% chance to REMOVE (if depth > 1)
+     */
     mutate() {
+        // Mutate parameters of existing blocks
         this._lstmArray.forEach(lstm => {
             lstm.mutate();
         });
-        if (this._glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this._glstm.MUTATION_RATE > Math.random()) {
-            if (Math.random() > 0.5 && this._lstmArray.length > 1) {
-                this._lstmArray.pop();
+
+        // Structural mutation
+        const structProb = this._glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this._glstm.MUTATION_RATE;
+
+        if (structProb > Math.random()) {
+            // Decide whether to add or remove
+            const shouldRemove = Math.random() < this._glstm.PROBABILITY_REMOVE_BLOCK;
+
+            if (shouldRemove && this._lstmArray.length > 1) {
+                // Remove block from either end
+                const removeFromEnd = Math.random() < 0.5;
+                if (removeFromEnd) {
+                    this._lstmArray.pop();
+                } else {
+                    this._lstmArray.shift();
+                }
             } else {
-                this._lstmArray.push(new LSTM(this._glstm));
+                // Add sleeping block
+                const shouldAppend = Math.random() < this._glstm.PROBABILITY_ADD_BLOCK_APPEND;
+
+                if (shouldAppend) {
+                    // APPEND: add to end (90-95% of additions)
+                    this._lstmArray.push(this._createSleepingBlock());
+                } else {
+                    // PREPEND: add to beginning (5-10% of additions)
+                    this._lstmArray.unshift(this._createSleepingBlock());
+                }
             }
         }
     }
@@ -100,6 +172,7 @@ export class Genome {
             const block2 = lstms2[i];
 
             if (block1 && block2) {
+                // Both parents have this block: cross parameters
                 const b1Model = block1.model();
                 const b2Model = block2.model();
                 geneOptions.push({
@@ -113,11 +186,16 @@ export class Genome {
                         b1Model.shortMemoryToRemember,
                         b2Model.shortMemoryToRemember,
                     ),
+                    alpha: Math.random() < 0.5 ? b1Model.alpha : b2Model.alpha,
                 });
-            } else if (block1 && Math.random() < 0.5) {
-                geneOptions.push(block1.model());
-            } else if (block2) {
-                geneOptions.push(block2.model());
+            } else {
+                // Only one parent has this block: inherit with higher probability (75%)
+                const useBlock1 = block1 && (!block2 || Math.random() < 0.75);
+                if (useBlock1 && block1) {
+                    geneOptions.push(block1.model());
+                } else if (block2) {
+                    geneOptions.push(block2.model());
+                }
             }
         }
 

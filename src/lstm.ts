@@ -59,8 +59,13 @@ export class LSTM {
 
     private _outputGate: OutputBlock;
 
+    // Skip connection strength for non-destructive mutations
+    private _alpha: number;
+
     constructor(GeneLSTM: GeneLSTM, options?: LstmOptions) {
         this._geneLstm = GeneLSTM;
+        this._alpha = options?.alpha ?? 1.0; // Default: no skip connection
+
         if (options) {
             this._forgetGate = new ShortMemoryBlock(
                 'sigmoid',
@@ -93,6 +98,15 @@ export class LSTM {
             this._shortMemoryToRemember = new ShortMemoryBlock('sigmoid');
         }
         this._outputGate = new OutputBlock();
+    }
+
+    get alpha(): number {
+        return this._alpha;
+    }
+
+    set alpha(value: number) {
+        // Clamp alpha between 0 and 1
+        this._alpha = Math.max(0, Math.min(1, value));
     }
 
     flattenWeights(): number[] {
@@ -165,6 +179,7 @@ export class LSTM {
                 weight2: this._shortMemoryToRemember.weight2,
                 bias: this._shortMemoryToRemember.bias,
             },
+            alpha: this._alpha,
         };
     }
 
@@ -213,50 +228,53 @@ export class LSTM {
 
     private _mutateWeightShift() {
         const block = this._getBlockToMutate();
-
-        let newWeight = block.bias || this._geneLstm.WEIGHT_SHIFT_STRENGTH;
-        while (newWeight === block.bias) {
-            newWeight = block.bias + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH;
-        }
-        block.bias = newWeight;
-    }
-
-    private _mutateBiasShift() {
-        const block = this._getBlockToMutate();
         const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
 
         let newWeight = block[weightNum] || this._geneLstm.WEIGHT_SHIFT_STRENGTH;
         while (newWeight === block[weightNum]) {
             newWeight = block[weightNum] + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH;
         }
-        block[weightNum] = newWeight;
+        // Clamp to reasonable range
+        block[weightNum] = Math.max(-10, Math.min(10, newWeight));
+    }
+
+    private _mutateBiasShift() {
+        const block = this._getBlockToMutate();
+
+        let newBias = block.bias || this._geneLstm.BIAS_SHIFT_STRENGTH;
+        while (newBias === block.bias) {
+            newBias = block.bias + (Math.random() * 2 - 1) * this._geneLstm.BIAS_SHIFT_STRENGTH;
+        }
+        // Clamp to reasonable range
+        block.bias = Math.max(-10, Math.min(10, newBias));
+    }
+
+    private _mutateAlpha() {
+        const delta = (Math.random() * 2 - 1) * 0.1; // ±10% change
+        this.alpha = this._alpha + delta;
     }
 
     mutate() {
-        let prob: number;
-
-        prob = this._geneLstm.PROBABILITY_MUTATE_WEIGHT_RANDOM * this._geneLstm.MUTATION_RATE;
-        while (prob > Math.random()) {
-            prob--;
+        // Refactored to use simpler Bernoulli sampling
+        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_WEIGHT_RANDOM * this._geneLstm.MUTATION_RATE) {
             this._mutateWeightRandom();
         }
 
-        prob = this._geneLstm.PROBABILITY_MUTATE_BIAS_RANDOM * this._geneLstm.MUTATION_RATE;
-        while (prob > Math.random()) {
-            prob--;
+        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_BIAS_RANDOM * this._geneLstm.MUTATION_RATE) {
             this._mutateBiasRandom();
         }
 
-        prob = this._geneLstm.PROBABILITY_MUTATE_WEIGHT_SHIFT * this._geneLstm.MUTATION_RATE;
-        while (prob > Math.random()) {
-            prob--;
+        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_WEIGHT_SHIFT * this._geneLstm.MUTATION_RATE) {
             this._mutateWeightShift();
         }
 
-        prob = this._geneLstm.PROBABILITY_MUTATE_BIAS_SHIFT * this._geneLstm.MUTATION_RATE;
-        while (prob > Math.random()) {
-            prob--;
+        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_BIAS_SHIFT * this._geneLstm.MUTATION_RATE) {
             this._mutateBiasShift();
+        }
+
+        // Mutate alpha (skip connection strength) occasionally
+        if (Math.random() < 0.05 * this._geneLstm.MUTATION_RATE) {
+            this._mutateAlpha();
         }
     }
 }

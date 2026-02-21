@@ -9,6 +9,16 @@ export interface LstmOptions {
     potentialLongToRem: ShortMemory;
     potentialLongMemory: ShortMemory;
     shortMemoryToRemember: ShortMemory;
+    alpha?: number; // Skip connection strength
 }
 
 export type GeneOptions = LstmOptions[];
+
+export interface SleepingBlockConfig {
+    epsilon: number; // Small weight range
+    forgetBias: number; // Positive: remember everything
+    inputBias: number; // Negative: write little
+    outputBias: number; // Neutral
+    candidateBias: number; // Neutral
+    initialAlpha: number; // Skip connection initial value
+}

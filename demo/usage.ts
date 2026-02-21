@@ -144,7 +144,7 @@ const usetraining = async () => {
     console.log('---- TRAINED -----');
     data.inputs.forEach((input, i) => {
         const out = c.calculate(input);
-        console.log('input', input, 'out', out, `// should be ${data.outputs[i]}`);
+        console.log('input N', i, 'out', out, `// should be ${data.outputs[i]}`);
     });
     console.log('---- ----------- -----');
 };

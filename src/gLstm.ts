@@ -77,7 +77,7 @@ export class GeneLSTM {
     constructor(clients: number, options?: GeneLSTMOptions) {
         this._maxClients = clients;
 
-        this._CP = options?.CP ?? 1.0;
+        this._CP = options?.CP ?? 0.1;
         this._C1 = options?.C1 ?? 1.0;
         this._C2 = options?.C2 ?? 0.4;
         this._SURVIVORS = options?.SURVIVORS ?? 0.8;
@@ -110,9 +110,9 @@ export class GeneLSTM {
 
         // Dynamic CP adjustment parameters
         this._targetSpecies = options?.targetSpecies ?? 8;
-        this._cpAdjustRate = options?.cpAdjustRate ?? 0.02;
+        this._cpAdjustRate = options?.cpAdjustRate ?? 0.2;
         this._cpDeadband = options?.cpDeadband ?? 1;
-        this._minCP = options?.minCP ?? 0.1;
+        this._minCP = options?.minCP ?? 0.01;
         this._maxCP = options?.maxCP ?? 10.0;
 
         this._init(options?.loadData);
@@ -278,7 +278,7 @@ export class GeneLSTM {
         this._genSpecies();
 
         // Dynamically adjust CP based on current species count
-        this.adjustCP(this._species.length, this._evolveCounts);
+        this.adjustCP(this._species.length);
 
         this._kill();
         this._removeExtinct();

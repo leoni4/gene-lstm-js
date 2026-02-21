@@ -13,10 +13,12 @@ interface GeneLSTMOptions {
     MUTATION_RATE?: number;
     BIAS_SHIFT_STRENGTH?: number;
     BIAS_RANDOM_STRENGTH?: number;
+    ALPHA_SHIFT_STRENGTH?: number;
     PROBABILITY_MUTATE_BIAS_SHIFT?: number;
     PROBABILITY_MUTATE_BIAS_RANDOM?: number;
     WEIGHT_SHIFT_STRENGTH?: number;
     WEIGHT_RANDOM_STRENGTH?: number;
+    PROBABILITY_MUTATE_ALPHA_SHIFT?: number;
     PROBABILITY_MUTATE_WEIGHT_SHIFT?: number;
     PROBABILITY_MUTATE_WEIGHT_RANDOM?: number;
     PROBABILITY_MUTATE_LSTM_BLOCK?: number;
@@ -40,8 +42,10 @@ export class GeneLSTM {
 
     private _BIAS_SHIFT_STRENGTH: number;
     private _BIAS_RANDOM_STRENGTH: number;
+    private _ALPHA_SHIFT_STRENGTH: number;
     private _PROBABILITY_MUTATE_BIAS_SHIFT: number;
     private _PROBABILITY_MUTATE_BIAS_RANDOM: number;
+    private _PROBABILITY_MUTATE_ALPHA_SHIFT: number;
 
     private _WEIGHT_SHIFT_STRENGTH: number;
     private _WEIGHT_RANDOM_STRENGTH: number;
@@ -69,7 +73,9 @@ export class GeneLSTM {
         this._BIAS_RANDOM_STRENGTH = options?.BIAS_RANDOM_STRENGTH ?? 1.0;
         this._WEIGHT_SHIFT_STRENGTH = options?.WEIGHT_SHIFT_STRENGTH ?? 0.2;
         this._WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH ?? 1.0;
+        this._ALPHA_SHIFT_STRENGTH = options?.ALPHA_SHIFT_STRENGTH ?? 0.01;
 
+        this._PROBABILITY_MUTATE_ALPHA_SHIFT = options?.PROBABILITY_MUTATE_ALPHA_SHIFT ?? 0.05;
         this._PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT ?? 0.8;
         this._PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM ?? 0.1;
         this._PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.8;
@@ -121,6 +127,12 @@ export class GeneLSTM {
     }
     get PROBABILITY_MUTATE_BIAS_RANDOM() {
         return this._PROBABILITY_MUTATE_BIAS_RANDOM;
+    }
+    get PROBABILITY_MUTATE_ALPHA_SHIFT() {
+        return this._PROBABILITY_MUTATE_ALPHA_SHIFT;
+    }
+    get ALPHA_SHIFT_STRENGTH() {
+        return this._ALPHA_SHIFT_STRENGTH;
     }
     get WEIGHT_SHIFT_STRENGTH() {
         return this._WEIGHT_SHIFT_STRENGTH;

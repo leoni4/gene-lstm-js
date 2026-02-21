@@ -250,7 +250,7 @@ export class LSTM {
     }
 
     private _mutateAlpha() {
-        const delta = (Math.random() * 2 - 1) * 0.1; // ±10% change
+        const delta = (Math.random() * 2 - 1) * this._geneLstm.ALPHA_SHIFT_STRENGTH; // ±10% change
         this.alpha = this._alpha + delta;
     }
 
@@ -273,7 +273,7 @@ export class LSTM {
         }
 
         // Mutate alpha (skip connection strength) occasionally
-        if (Math.random() < 0.05 * this._geneLstm.MUTATION_RATE) {
+        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_ALPHA_SHIFT * this._geneLstm.MUTATION_RATE) {
             this._mutateAlpha();
         }
     }

@@ -533,6 +533,10 @@ export class GeneLSTM {
             return;
         }
 
+        this._clients.sort((a, b) => {
+            return a.score > b.score ? -1 : 1;
+        });
+
         // Current best client (already sorted by score in _normalizeScore)
         const currentBest = this._clients[0];
 

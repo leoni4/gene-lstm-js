@@ -381,7 +381,6 @@ export class GeneLSTM {
     evolve(optimization = false) {
         this._evolveCounts++;
         this._optimization = optimization || this._evolveCounts % 10 === 0;
-        this._normalizeScore();
 
         // Track best fitness for automatic pressure escalation
         if (this._enablePressureEscalation && this._clients.length > 0) {
@@ -389,6 +388,8 @@ export class GeneLSTM {
             const currentBestScore = bestClient.score;
             this.updateMutationPressure(currentBestScore, this._evolveCounts);
         }
+
+        this._normalizeScore();
 
         this._genSpecies();
 

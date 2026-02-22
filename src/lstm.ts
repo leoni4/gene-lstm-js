@@ -205,76 +205,98 @@ export class LSTM {
         return block;
     }
 
-    private _mutateWeightRandom() {
+    private _mutateWeightRandom(pressureScale: number) {
         const block = this._getBlockToMutate();
         const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
 
         let newWeight = block[weightNum] || this._geneLstm.WEIGHT_RANDOM_STRENGTH;
         while (newWeight === block[weightNum]) {
-            newWeight = (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.WEIGHT_RANDOM_STRENGTH;
+            newWeight =
+                (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.WEIGHT_RANDOM_STRENGTH * pressureScale;
         }
         block[weightNum] = newWeight;
     }
 
-    private _mutateBiasRandom() {
+    private _mutateBiasRandom(pressureScale: number) {
         const block = this._getBlockToMutate();
 
         let newWeight = block.bias || this._geneLstm.BIAS_RANDOM_STRENGTH;
         while (newWeight === block.bias) {
-            newWeight = (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.BIAS_RANDOM_STRENGTH;
+            newWeight =
+                (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.BIAS_RANDOM_STRENGTH * pressureScale;
         }
         block.bias = newWeight;
     }
 
-    private _mutateWeightShift() {
+    private _mutateWeightShift(pressureScale: number) {
         const block = this._getBlockToMutate();
         const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
 
         let newWeight = block[weightNum] || this._geneLstm.WEIGHT_SHIFT_STRENGTH;
         while (newWeight === block[weightNum]) {
-            newWeight = block[weightNum] + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH;
+            newWeight =
+                block[weightNum] + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH * pressureScale;
         }
         // Clamp to reasonable range
         block[weightNum] = Math.max(-10, Math.min(10, newWeight));
     }
 
-    private _mutateBiasShift() {
+    private _mutateBiasShift(pressureScale: number) {
         const block = this._getBlockToMutate();
 
         let newBias = block.bias || this._geneLstm.BIAS_SHIFT_STRENGTH;
         while (newBias === block.bias) {
-            newBias = block.bias + (Math.random() * 2 - 1) * this._geneLstm.BIAS_SHIFT_STRENGTH;
+            newBias = block.bias + (Math.random() * 2 - 1) * this._geneLstm.BIAS_SHIFT_STRENGTH * pressureScale;
         }
         // Clamp to reasonable range
         block.bias = Math.max(-10, Math.min(10, newBias));
     }
 
-    private _mutateAlpha() {
-        const delta = (Math.random() * 2 - 1) * this._geneLstm.ALPHA_SHIFT_STRENGTH; // ±10% change
+    private _mutateAlpha(pressureScale: number) {
+        const delta = (Math.random() * 2 - 1) * this._geneLstm.ALPHA_SHIFT_STRENGTH * pressureScale;
         this.alpha = this._alpha + delta;
     }
 
     mutate() {
-        // Refactored to use simpler Bernoulli sampling
-        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_WEIGHT_RANDOM * this._geneLstm.MUTATION_RATE) {
-            this._mutateWeightRandom();
+        // Apply weights mutation pressure to all weight/bias mutations
+        const pressure = this._geneLstm.getMutationPressure();
+        const weightsPressure = pressure.weights;
+
+        // Refactored to use simpler Bernoulli sampling with pressure scaling
+        if (
+            Math.random() <
+            this._geneLstm.PROBABILITY_MUTATE_WEIGHT_RANDOM * this._geneLstm.MUTATION_RATE * weightsPressure
+        ) {
+            this._mutateWeightRandom(weightsPressure);
         }
 
-        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_BIAS_RANDOM * this._geneLstm.MUTATION_RATE) {
-            this._mutateBiasRandom();
+        if (
+            Math.random() <
+            this._geneLstm.PROBABILITY_MUTATE_BIAS_RANDOM * this._geneLstm.MUTATION_RATE * weightsPressure
+        ) {
+            this._mutateBiasRandom(weightsPressure);
         }
 
-        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_WEIGHT_SHIFT * this._geneLstm.MUTATION_RATE) {
-            this._mutateWeightShift();
+        if (
+            Math.random() <
+            this._geneLstm.PROBABILITY_MUTATE_WEIGHT_SHIFT * this._geneLstm.MUTATION_RATE * weightsPressure
+        ) {
+            this._mutateWeightShift(weightsPressure);
         }
 
-        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_BIAS_SHIFT * this._geneLstm.MUTATION_RATE) {
-            this._mutateBiasShift();
+        if (
+            Math.random() <
+            this._geneLstm.PROBABILITY_MUTATE_BIAS_SHIFT * this._geneLstm.MUTATION_RATE * weightsPressure
+        ) {
+            this._mutateBiasShift(weightsPressure);
         }
 
         // Mutate alpha (skip connection strength) occasionally
-        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_ALPHA_SHIFT * this._geneLstm.MUTATION_RATE) {
-            this._mutateAlpha();
+        if (
+            Math.random() <
+            this._geneLstm.PROBABILITY_MUTATE_ALPHA_SHIFT * this._geneLstm.MUTATION_RATE * weightsPressure
+        ) {
+            this._mutateAlpha(weightsPressure);
         }
     }
 }

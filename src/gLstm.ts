@@ -4,6 +4,7 @@ import { Genome } from './genome.js';
 import { RandomSelector } from './randomSelector.js';
 
 import type { GeneOptions, SleepingBlockConfig } from './types/index.js';
+import { EMutationPressure, MUTATION_PRESSURE_CONST } from './types/index.js';
 
 interface GeneLSTMOptions {
     CP?: number;
@@ -32,6 +33,10 @@ interface GeneLSTMOptions {
     cpDeadband?: number;
     minCP?: number;
     maxCP?: number;
+    // Mutation pressure parameters
+    mutationPressure?: EMutationPressure;
+    enablePressureEscalation?: boolean;
+    stagnationThreshold?: number;
 }
 
 export class GeneLSTM {
@@ -70,6 +75,13 @@ export class GeneLSTM {
     private _cpDeadband: number;
     private _minCP: number;
     private _maxCP: number;
+
+    // Mutation pressure parameters
+    private _mutationPressure: EMutationPressure;
+    private _enablePressureEscalation: boolean;
+    private _stagnationThreshold: number;
+    private _stagnationCounter = 0;
+    private _bestFitnessEver = -Infinity;
 
     private _evolveCounts = 0;
     private _optimization = false;
@@ -114,6 +126,11 @@ export class GeneLSTM {
         this._cpDeadband = options?.cpDeadband ?? 1;
         this._minCP = options?.minCP ?? 0.01;
         this._maxCP = options?.maxCP ?? 10.0;
+
+        // Mutation pressure parameters
+        this._mutationPressure = options?.mutationPressure ?? EMutationPressure.NORMAL;
+        this._enablePressureEscalation = options?.enablePressureEscalation ?? false;
+        this._stagnationThreshold = options?.stagnationThreshold ?? 15;
 
         this._init(options?.loadData);
     }
@@ -181,6 +198,22 @@ export class GeneLSTM {
 
     get clients() {
         return this._clients;
+    }
+
+    get mutationPressure(): EMutationPressure {
+        return this._mutationPressure;
+    }
+
+    set mutationPressure(value: EMutationPressure) {
+        this._mutationPressure = value;
+    }
+
+    /**
+     * Returns the current mutation pressure multipliers for topology and weights.
+     * These are used to scale mutation probabilities and magnitudes throughout the system.
+     */
+    getMutationPressure(): { topology: number; weights: number } {
+        return MUTATION_PRESSURE_CONST[this._mutationPressure];
     }
 
     emptyGenome() {
@@ -271,10 +304,92 @@ export class GeneLSTM {
         }
     }
 
+    /**
+     * Automatically adjusts mutation pressure based on fitness stagnation.
+     * State machine:
+     * - If fitness improves: reset stagnation counter, gradually reduce pressure (if above NORMAL)
+     * - If fitness stagnates for N generations: escalate pressure (NORMAL → BOOST → ESCAPE → PANIC)
+     *
+     * @param currentBestFitness The best fitness score in the current generation
+     * @param generation Optional generation number for logging
+     */
+    updateMutationPressure(currentBestFitness: number, generation?: number): void {
+        if (!this._enablePressureEscalation) {
+            return;
+        }
+
+        const improvementThreshold = 0.001; // Small improvement counts
+        const hasImproved = currentBestFitness > this._bestFitnessEver + improvementThreshold;
+
+        if (hasImproved) {
+            // Fitness improved - reset stagnation and gradually reduce pressure
+            this._bestFitnessEver = currentBestFitness;
+            this._stagnationCounter = 0;
+
+            // Gradually reduce pressure if above NORMAL
+            const pressureLevels = [
+                EMutationPressure.PANIC,
+                EMutationPressure.ESCAPE,
+                EMutationPressure.BOOST,
+                EMutationPressure.NORMAL,
+            ];
+            const currentIndex = pressureLevels.indexOf(this._mutationPressure);
+
+            if (currentIndex < pressureLevels.length - 1) {
+                // Move one level down towards NORMAL
+                this._mutationPressure = pressureLevels[currentIndex + 1];
+                if (generation !== undefined) {
+                    console.log(
+                        `[Gen ${generation}] Mutation Pressure: ${pressureLevels[currentIndex]} → ${this._mutationPressure} (fitness improved to ${currentBestFitness.toFixed(4)})`,
+                    );
+                }
+            }
+        } else {
+            // No improvement - increment stagnation counter
+            this._stagnationCounter++;
+
+            // Check if we should escalate pressure
+            if (this._stagnationCounter >= this._stagnationThreshold) {
+                const pressureLevels = [
+                    EMutationPressure.NORMAL,
+                    EMutationPressure.BOOST,
+                    EMutationPressure.ESCAPE,
+                    EMutationPressure.PANIC,
+                ];
+                const currentIndex = pressureLevels.indexOf(this._mutationPressure);
+
+                if (currentIndex < pressureLevels.length - 1) {
+                    // Escalate pressure
+                    const oldPressure = this._mutationPressure;
+                    this._mutationPressure = pressureLevels[currentIndex + 1];
+                    this._stagnationCounter = 0; // Reset counter after escalation
+
+                    if (generation !== undefined) {
+                        console.log(
+                            `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} (stagnated for ${this._stagnationThreshold} generations, best: ${this._bestFitnessEver.toFixed(4)})`,
+                        );
+                    }
+                } else if (generation !== undefined && this._stagnationCounter === this._stagnationThreshold) {
+                    console.log(
+                        `[Gen ${generation}] Mutation Pressure: ${this._mutationPressure} (already at maximum, stagnated for ${this._stagnationCounter} generations)`,
+                    );
+                }
+            }
+        }
+    }
+
     evolve(optimization = false) {
         this._evolveCounts++;
         this._optimization = optimization || this._evolveCounts % 10 === 0;
         this._normalizeScore();
+
+        // Track best fitness for automatic pressure escalation
+        if (this._enablePressureEscalation && this._clients.length > 0) {
+            const bestClient = this._clients[0]; // Already sorted by score in _normalizeScore
+            const currentBestScore = bestClient.score;
+            this.updateMutationPressure(currentBestScore, this._evolveCounts);
+        }
+
         this._genSpecies();
 
         // Dynamically adjust CP based on current species count

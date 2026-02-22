@@ -115,6 +115,9 @@ export class Genome {
      * - 92% chance to APPEND (add to end) - preserves learned representations
      * - 8% chance to PREPEND (add to beginning) - explores new input transformations
      * - 10% chance to REMOVE (if depth > 1)
+     *
+     * Mutation pressure scaling:
+     * - Topology pressure scales the probability of structural mutations (add/remove blocks)
      */
     mutate() {
         // Mutate parameters of existing blocks
@@ -122,12 +125,14 @@ export class Genome {
             lstm.mutate();
         });
 
-        // Structural mutation
-        const structProb = this._glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this._glstm.MUTATION_RATE;
+        // Apply topology mutation pressure to structural mutations
+        const pressure = this._glstm.getMutationPressure();
+        const structProb = this._glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this._glstm.MUTATION_RATE * pressure.topology;
 
         if (structProb > Math.random()) {
-            // Decide whether to add or remove
-            const shouldRemove = Math.random() < this._glstm.PROBABILITY_REMOVE_BLOCK;
+            // Decide whether to add or remove (remove probability also scaled by topology pressure)
+            const scaledRemoveProb = this._glstm.PROBABILITY_REMOVE_BLOCK * pressure.topology;
+            const shouldRemove = Math.random() < Math.min(scaledRemoveProb, 0.9); // Cap at 90% to avoid too aggressive pruning
 
             if (shouldRemove && this._lstmArray.length > 1) {
                 // Remove block from either end

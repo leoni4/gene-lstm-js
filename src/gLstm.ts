@@ -93,6 +93,24 @@ export class GeneLSTM {
     private _stagnationThreshold: number;
     private _stagnationCounter = 0;
     private _bestFitnessEver = -Infinity;
+    // --- Pressure tuning knobs ---
+    private _pressureImprovementAbs = 1e-6; // minimal absolute improvement
+    private _pressureImprovementRel = 1e-3; // relative improvement factor (0.1%)
+
+    // Panic control
+    private _panicCounter = 0;
+    private _panicMaxGenerations = 30; // how long we allow PANIC to run
+    private _panicCooldownCounter = 0;
+    private _panicCooldownGenerations = 60; // after PANIC ends, forbid re-entering for a while
+
+    // Optional: per-level stagnation thresholds (instead of one global)
+    private _stagnationThresholdByPressure: Record<EMutationPressure, number> = {
+        [EMutationPressure.COMPACT]: 40,
+        [EMutationPressure.NORMAL]: 20,
+        [EMutationPressure.BOOST]: 40,
+        [EMutationPressure.ESCAPE]: 80,
+        [EMutationPressure.PANIC]: 999999, // not used for step-up (PANIC is max)
+    };
 
     // Champion tracking parameters
     private _champion: Client | null = null;
@@ -337,14 +355,49 @@ export class GeneLSTM {
         if (!this._enablePressureEscalation) {
             return;
         }
+        if (this._panicCooldownCounter > 0) {
+            this._panicCooldownCounter--;
+        }
+        if (this._mutationPressure === EMutationPressure.PANIC) {
+            this._panicCounter++;
 
-        const improvementThreshold = 0.001; // Small improvement counts
+            if (this._panicCounter >= this._panicMaxGenerations) {
+                // Force exit PANIC even without improvement
+                const oldPressure = this._mutationPressure;
+                this._mutationPressure = EMutationPressure.ESCAPE;
+
+                this._panicCounter = 0;
+                this._stagnationCounter = 0; // reset stagnation when forcing down
+                this._panicCooldownCounter = this._panicCooldownGenerations;
+
+                if (generation !== undefined) {
+                    console.log(
+                        `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} (PANIC timeout ${this._panicMaxGenerations} gens, cooldown ${this._panicCooldownGenerations} gens)`,
+                    );
+                }
+
+                return;
+            }
+        }
+
+        // Abs + relative threshold: makes improvement detection stable for different fitness scales
+        const improvementThreshold = Math.max(
+            this._pressureImprovementAbs,
+            Math.abs(this._bestFitnessEver) * this._pressureImprovementRel,
+        );
+
         const hasImproved = currentBestFitness > this._bestFitnessEver + improvementThreshold;
 
         if (hasImproved) {
             // Fitness improved - reset stagnation and gradually reduce pressure
             this._bestFitnessEver = currentBestFitness;
             this._stagnationCounter = 0;
+
+            // If we improved, clear panic tracking (we don't want to be stuck in panic mode)
+            this._panicCounter = 0;
+            // Optionally shorten cooldown because progress resumed:
+            if (this._panicCooldownCounter > 0)
+                this._panicCooldownCounter = Math.floor(this._panicCooldownCounter * 0.5);
 
             // Gradually reduce pressure if above NORMAL
             const pressureLevels = [
@@ -353,7 +406,11 @@ export class GeneLSTM {
                 EMutationPressure.BOOST,
                 EMutationPressure.NORMAL,
             ];
-            const currentIndex = pressureLevels.indexOf(this._mutationPressure);
+            let currentIndex = pressureLevels.indexOf(this._mutationPressure);
+            if (currentIndex === -1) {
+                this._mutationPressure = EMutationPressure.NORMAL;
+                currentIndex = pressureLevels.indexOf(this._mutationPressure);
+            }
 
             if (currentIndex < pressureLevels.length - 1) {
                 // Move one level down towards NORMAL
@@ -365,34 +422,54 @@ export class GeneLSTM {
                 }
             }
         } else {
-            // No improvement - increment stagnation counter
             this._stagnationCounter++;
 
-            // Check if we should escalate pressure
-            if (this._stagnationCounter >= this._stagnationThreshold) {
+            // Use per-level stagnation threshold (more patient as pressure increases)
+            const levelThreshold =
+                this._stagnationThresholdByPressure?.[this._mutationPressure] ?? this._stagnationThreshold;
+
+            if (this._stagnationCounter >= levelThreshold) {
                 const pressureLevels = [
                     EMutationPressure.NORMAL,
                     EMutationPressure.BOOST,
                     EMutationPressure.ESCAPE,
                     EMutationPressure.PANIC,
                 ];
-                const currentIndex = pressureLevels.indexOf(this._mutationPressure);
 
-                if (currentIndex < pressureLevels.length - 1) {
-                    // Escalate pressure
+                let currentIndex = pressureLevels.indexOf(this._mutationPressure);
+                if (currentIndex === -1) {
+                    this._mutationPressure = EMutationPressure.NORMAL;
+                    currentIndex = pressureLevels.indexOf(this._mutationPressure);
+                }
+
+                // If PANIC is on cooldown, do not escalate into PANIC
+                const nextPressure = pressureLevels[currentIndex + 1];
+                const panicBlocked = nextPressure === EMutationPressure.PANIC && this._panicCooldownCounter > 0;
+
+                if (currentIndex < pressureLevels.length - 1 && !panicBlocked) {
                     const oldPressure = this._mutationPressure;
-                    this._mutationPressure = pressureLevels[currentIndex + 1];
+                    this._mutationPressure = nextPressure;
                     this._stagnationCounter = 0; // Reset counter after escalation
+
+                    // entering panic: reset panic counter
+                    if (this._mutationPressure === EMutationPressure.PANIC) {
+                        this._panicCounter = 0;
+                    }
 
                     if (generation !== undefined) {
                         console.log(
-                            `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} (stagnated for ${this._stagnationThreshold} generations, best: ${this._bestFitnessEver.toFixed(4)})`,
+                            `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} (stagnated for ${levelThreshold} generations, best: ${this._bestFitnessEver.toFixed(4)})`,
                         );
                     }
-                } else if (generation !== undefined && this._stagnationCounter === this._stagnationThreshold) {
-                    console.log(
-                        `[Gen ${generation}] Mutation Pressure: ${this._mutationPressure} (already at maximum, stagnated for ${this._stagnationCounter} generations)`,
-                    );
+                } else {
+                    // If we could not escalate (max or panic blocked), you may still want to reset counter to avoid spam
+                    this._stagnationCounter = 0;
+
+                    if (generation !== undefined && panicBlocked) {
+                        console.log(
+                            `[Gen ${generation}] Mutation Pressure: ${this._mutationPressure} (PANIC blocked by cooldown ${this._panicCooldownCounter} gens)`,
+                        );
+                    }
                 }
             }
         }

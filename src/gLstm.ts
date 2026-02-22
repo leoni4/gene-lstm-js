@@ -6,6 +6,17 @@ import { RandomSelector } from './randomSelector.js';
 import type { GeneOptions, SleepingBlockConfig } from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST } from './types/index.js';
 
+function getDefaultCP(clients: number): number {
+    if (clients <= 100) {
+        return 5;
+    }
+    if (clients > 100 && clients <= 500) {
+        return 8;
+    }
+
+    return 10;
+}
+
 interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
@@ -126,7 +137,7 @@ export class GeneLSTM {
         };
 
         // Dynamic CP adjustment parameters
-        this._targetSpecies = options?.targetSpecies ?? 8;
+        this._targetSpecies = options?.targetSpecies ?? getDefaultCP(clients);
         this._cpAdjustRate = options?.cpAdjustRate ?? 0.2;
         this._cpDeadband = options?.cpDeadband ?? 1;
         this._minCP = options?.minCP ?? 0.01;
@@ -411,6 +422,8 @@ export class GeneLSTM {
         this._removeExtinct();
         this._reproduce();
         this._mutate();
+        console.log('pressure:', this._mutationPressure);
+        console.log('---');
     }
 
     private _normalizeScore() {

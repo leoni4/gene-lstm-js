@@ -83,6 +83,11 @@ export class GeneLSTM {
     private _stagnationCounter = 0;
     private _bestFitnessEver = -Infinity;
 
+    // Champion tracking parameters
+    private _champion: Client | null = null;
+    private _championStagnationCount = 0;
+    private _championStagnationThreshold = 10;
+
     private _evolveCounts = 0;
     private _optimization = false;
 
@@ -129,7 +134,7 @@ export class GeneLSTM {
 
         // Mutation pressure parameters
         this._mutationPressure = options?.mutationPressure ?? EMutationPressure.NORMAL;
-        this._enablePressureEscalation = options?.enablePressureEscalation ?? false;
+        this._enablePressureEscalation = options?.enablePressureEscalation ?? true;
         this._stagnationThreshold = options?.stagnationThreshold ?? 15;
 
         this._init(options?.loadData);
@@ -389,12 +394,14 @@ export class GeneLSTM {
             this.updateMutationPressure(currentBestScore, this._evolveCounts);
         }
 
+        this._updateChampion();
+
         this._normalizeScore();
 
         this._genSpecies();
 
         // Dynamically adjust CP based on current species count
-        this.adjustCP(this._species.length);
+        this.adjustCP(this._species.length, this._evolveCounts);
 
         this._kill();
         this._removeExtinct();
@@ -508,5 +515,93 @@ export class GeneLSTM {
         this._clients.forEach(client => {
             client.mutate();
         });
+    }
+
+    /**
+     * Updates the champion (best client ever seen) and handles re-insertion.
+     * The champion is a saved copy of the best performing client.
+     *
+     * Logic:
+     * 1. Compare current best client with stored champion
+     * 2. If current best is better (or no champion exists), save a copy and reset stagnation
+     * 3. If champion hasn't been improved for N epochs (default 10), re-insert it into population
+     *    by replacing the worst performing client
+     * 4. After re-insertion, reset stagnation counter
+     */
+    private _updateChampion(): void {
+        if (this._clients.length === 0) {
+            return;
+        }
+
+        // Current best client (already sorted by score in _normalizeScore)
+        const currentBest = this._clients[0];
+
+        // Initialize champion if not exists
+        if (this._champion === null) {
+            // Create a deep copy of the best client
+            this._champion = this._copyClient(currentBest);
+            this._championStagnationCount = 0;
+            console.log(`[Gen ${this._evolveCounts}] Champion initialized with score ${currentBest.score.toFixed(4)}`);
+
+            return;
+        }
+
+        // Compare current best with champion (use raw score comparison)
+        // Since scores are normalized, we compare the actual fitness before normalization
+        // We'll use a simple comparison: if current best has higher normalized score, it's better
+        const championImproved = currentBest.score > this._champion.score;
+
+        if (championImproved) {
+            // Update champion with new best
+            this._champion = this._copyClient(currentBest);
+            this._championStagnationCount = 0;
+            console.log(`[Gen ${this._evolveCounts}] Champion updated with score ${currentBest.score.toFixed(4)}`);
+        } else {
+            // No improvement - increment stagnation counter
+            this._championStagnationCount++;
+
+            // Check if we should re-insert champion
+            if (this._championStagnationCount >= this._championStagnationThreshold) {
+                // Re-insert champion by replacing the worst client
+                const worstClientIndex = this._clients.length - 1;
+                const worstClient = this._clients[worstClientIndex];
+
+                console.log(
+                    `[Gen ${this._evolveCounts}] Champion re-inserted after ${this._championStagnationCount} stagnant epochs (replacing worst client with score ${worstClient.score.toFixed(4)})`,
+                );
+
+                // Detach worst client from its species
+                // The species will clean up in the next _genSpecies call
+                if (worstClient.species !== null) {
+                    worstClient.species = null;
+                }
+
+                // Create a fresh copy of champion and insert it
+                const championCopy = this._copyClient(this._champion);
+                this._clients[worstClientIndex] = championCopy;
+
+                // Champion will be assigned to a species in the next _genSpecies call
+                // Reset stagnation counter
+                this._championStagnationCount = 0;
+            }
+        }
+    }
+
+    /**
+     * Creates a deep copy of a client, including its genome.
+     * This ensures the champion is preserved independently of population changes.
+     */
+    private _copyClient(client: Client): Client {
+        // Create a new genome by copying the structure from the original
+        const geneOptions = client.genome.lstmArray.map(lstm => lstm.model());
+        const newGenome = new Genome(this, geneOptions);
+
+        // Create a new client with the copied genome
+        const newClient = new Client(newGenome);
+        newClient.score = client.score;
+        newClient.bestScore = client.bestScore;
+        newClient.error = client.error;
+
+        return newClient;
     }
 }

@@ -35,7 +35,7 @@ export class Genome {
         }
 
         let excess = 0;
-        let weightDiff = 0;
+        let weightDiffSum = 0;
         let similar = 0;
 
         const maxLen = Math.max(g1.lstmArray.length, g2.lstmArray.length);
@@ -49,31 +49,110 @@ export class Genome {
                 const w2 = block2.flattenWeights();
 
                 const len = Math.min(w1.length, w2.length);
+                let blockDiffSum = 0;
                 for (let j = 0; j < len; j++) {
-                    weightDiff += Math.abs(w1[j] - w2[j]);
+                    blockDiffSum += Math.abs(w1[j] - w2[j]);
                 }
 
-                weightDiff /= len || 1;
+                const blockDiff = blockDiffSum / (len || 1);
+                weightDiffSum += blockDiff;
                 similar++;
             } else {
                 excess++;
             }
         }
 
-        weightDiff /= similar || 1;
+        const weightDiff = weightDiffSum / (similar || 1);
 
         return this._glstm.C1 * excess + this._glstm.C2 * weightDiff;
     }
 
+    /**
+     * Creates a "sleeping block" - a new LSTM block initialized to be nearly transparent
+     * to preserve the parent's learned behavior during structural mutations
+     */
+    private _createSleepingBlock(): LSTM {
+        const config = this._glstm.sleepingBlockConfig;
+        const epsilon = config.epsilon;
+
+        // Helper to generate small random weights
+        const randomSmall = () => Math.random() * 2 * epsilon - epsilon;
+
+        const options: LstmOptions = {
+            // Forget gate: high bias -> remember everything (f_t ≈ 0.82)
+            forgetGate: {
+                weight1: randomSmall(),
+                weight2: randomSmall(),
+                bias: config.forgetBias,
+            },
+            // Input gate: low bias -> write very little (i_t ≈ 0.18)
+            potentialLongToRem: {
+                weight1: randomSmall(),
+                weight2: randomSmall(),
+                bias: config.inputBias,
+            },
+            // Candidate: neutral bias (g_t ≈ 0)
+            potentialLongMemory: {
+                weight1: randomSmall(),
+                weight2: randomSmall(),
+                bias: config.candidateBias,
+            },
+            // Output gate: neutral bias (o_t ≈ 0.5)
+            shortMemoryToRemember: {
+                weight1: randomSmall(),
+                weight2: randomSmall(),
+                bias: config.outputBias,
+            },
+            // Skip connection: start very small (block outputs ≈ input initially)
+            alpha: config.initialAlpha,
+        };
+
+        return new LSTM(this._glstm, options);
+    }
+
+    /**
+     * Structural mutation with directional bias:
+     * - 92% chance to APPEND (add to end) - preserves learned representations
+     * - 8% chance to PREPEND (add to beginning) - explores new input transformations
+     * - 10% chance to REMOVE (if depth > 1)
+     *
+     * Mutation pressure scaling:
+     * - Topology pressure scales the probability of structural mutations (add/remove blocks)
+     */
     mutate() {
+        // Mutate parameters of existing blocks
         this._lstmArray.forEach(lstm => {
             lstm.mutate();
         });
-        if (this._glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this._glstm.MUTATION_RATE > Math.random()) {
-            if (Math.random() > 0.5 && this._lstmArray.length > 1) {
-                this._lstmArray.pop();
+
+        // Apply topology mutation pressure to structural mutations
+        const pressure = this._glstm.getMutationPressure();
+        const structProb = this._glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this._glstm.MUTATION_RATE * pressure.topology;
+
+        if (structProb > Math.random()) {
+            // Decide whether to add or remove (remove probability also scaled by topology pressure)
+            const scaledRemoveProb = this._glstm.PROBABILITY_REMOVE_BLOCK * pressure.topology;
+            const shouldRemove = Math.random() < Math.min(scaledRemoveProb, 0.9); // Cap at 90% to avoid too aggressive pruning
+
+            if (shouldRemove && this._lstmArray.length > 1) {
+                // Remove block from either end
+                const removeFromEnd = Math.random() < 0.5;
+                if (removeFromEnd) {
+                    this._lstmArray.pop();
+                } else {
+                    this._lstmArray.shift();
+                }
             } else {
-                this._lstmArray.push(new LSTM(this._glstm));
+                // Add sleeping block
+                const shouldAppend = Math.random() < this._glstm.PROBABILITY_ADD_BLOCK_APPEND;
+
+                if (shouldAppend) {
+                    // APPEND: add to end (90-95% of additions)
+                    this._lstmArray.push(this._createSleepingBlock());
+                } else {
+                    // PREPEND: add to beginning (5-10% of additions)
+                    this._lstmArray.unshift(this._createSleepingBlock());
+                }
             }
         }
     }
@@ -100,6 +179,7 @@ export class Genome {
             const block2 = lstms2[i];
 
             if (block1 && block2) {
+                // Both parents have this block: cross parameters
                 const b1Model = block1.model();
                 const b2Model = block2.model();
                 geneOptions.push({
@@ -113,11 +193,16 @@ export class Genome {
                         b1Model.shortMemoryToRemember,
                         b2Model.shortMemoryToRemember,
                     ),
+                    alpha: Math.random() < 0.5 ? b1Model.alpha : b2Model.alpha,
                 });
-            } else if (block1 && Math.random() < 0.5) {
-                geneOptions.push(block1.model());
-            } else if (block2) {
-                geneOptions.push(block2.model());
+            } else {
+                // Only one parent has this block: inherit with higher probability (75%)
+                const useBlock1 = block1 && (!block2 || Math.random() < 0.75);
+                if (useBlock1 && block1) {
+                    geneOptions.push(block1.model());
+                } else if (block2) {
+                    geneOptions.push(block2.model());
+                }
             }
         }
 

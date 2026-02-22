@@ -139,7 +139,7 @@ const usetraining = async () => {
     await train(glstm, data);
     console.log('---- END TRAIN -----');
 
-    const c = glstm.clients[0];
+    const c = glstm.champion || glstm.clients[0];
 
     console.log('---- TRAINED -----');
     data.inputs.forEach((input, i) => {

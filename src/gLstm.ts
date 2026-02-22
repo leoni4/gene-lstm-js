@@ -213,6 +213,10 @@ export class GeneLSTM {
         this._mutationPressure = value;
     }
 
+    get champion() {
+        return this._champion;
+    }
+
     /**
      * Returns the current mutation pressure multipliers for topology and weights.
      * These are used to scale mutation probabilities and magnitudes throughout the system.

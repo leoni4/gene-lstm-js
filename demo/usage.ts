@@ -83,6 +83,7 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
     let iter = 0;
     let bestClient: Client;
     const EPOCHS = 1000;
+    const LAMBDA_MEAN = 0.05;
 
     return new Promise(resolve => {
         const session = async () => {
@@ -92,20 +93,25 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
                 const client = glstm.clients[c];
                 client.bestScore = false;
                 let localError = 0;
+                let predSum = 0;
                 for (let t = 0; t < data.inputs.length; t++) {
                     const input = data.inputs[t];
                     const output = data.outputs[t];
 
                     iter++;
                     const out = client.calculate(input)[0];
+                    predSum += out;
                     localError += Math.abs(out - output);
                     if (iter % 1000 === 0) {
                         await sleep(0);
                     }
                 }
                 localError = localError / data.inputs.length;
-                client.error = localError;
-                client.score = 1 - localError;
+                const meanPred = predSum / data.inputs.length;
+                const penalty = LAMBDA_MEAN * Math.abs(meanPred - 0.5);
+                const finalError = Math.min(1, localError + penalty);
+                client.error = finalError;
+                client.score = 1 - finalError;
                 if (error > localError) {
                     error = localError;
                     bestClient = client;

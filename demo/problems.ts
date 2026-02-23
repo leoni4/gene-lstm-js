@@ -155,10 +155,10 @@ export const testHierarchicalSegmentXorAdd = {
     outputs: [] as number[],
     build({
         samples = 512,
-        seqLen = 40,
+        seqLen = 20,
         segLen = 5,
-        threshold = 0.9,
-        noise = 0.05,
+        threshold = 1,
+        noise = 0,
         valueMin = 0.0,
         valueMax = 1.0,
         seed = 0,
@@ -216,13 +216,20 @@ export const testHierarchicalSegmentXorAdd = {
                     const segStart = i === 0 ? 1 : 0;
 
                     // flatten: t0[f0,f1,f2], t1[f0,f1,f2], ...
-                    sampleVec.push(value, marker, segStart);
+                    // sampleVec.push(value, marker, segStart);
+
+                    const packed = value + marker * 2 + segStart * 4; // диапазон [0..7]
+                    const packedNorm11 = packed / 3.5 - 1;
+                    sampleVec.push(packedNorm11);
                 }
             }
 
             inputs.push(sampleVec);
             outputs.push(finalParity);
         }
+        const up = outputs.filter(a => a === 1).length;
+        const down = outputs.length - up;
+        console.log(`1=${up}, 0=${down}`);
 
         return { ...this, inputs, outputs };
     },

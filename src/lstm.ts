@@ -22,9 +22,9 @@ export class ShortMemoryBlock {
         } else {
             this._activationFunction = Math.tanh;
         }
-        this.weight1 = weight1 || Math.random() * 2 - 1;
-        this.weight2 = weight2 || Math.random() * 2 - 1;
-        this.bias = bias || Math.random() * 2 - 1;
+        this.weight1 = weight1 ?? Math.random() * 2 - 1;
+        this.weight2 = weight2 ?? Math.random() * 2 - 1;
+        this.bias = bias ?? Math.random() * 2 - 1;
     }
 
     calculate(input: number, shortMemory: number): number {
@@ -209,7 +209,7 @@ export class LSTM {
         const block = this._getBlockToMutate();
         const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
 
-        let newWeight = block[weightNum] || this._geneLstm.WEIGHT_RANDOM_STRENGTH;
+        let newWeight = block[weightNum] ?? this._geneLstm.WEIGHT_RANDOM_STRENGTH;
         while (newWeight === block[weightNum]) {
             newWeight =
                 (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.WEIGHT_RANDOM_STRENGTH * pressureScale;
@@ -220,7 +220,7 @@ export class LSTM {
     private _mutateBiasRandom(pressureScale: number) {
         const block = this._getBlockToMutate();
 
-        let newWeight = block.bias || this._geneLstm.BIAS_RANDOM_STRENGTH;
+        let newWeight = block.bias ?? this._geneLstm.BIAS_RANDOM_STRENGTH;
         while (newWeight === block.bias) {
             newWeight =
                 (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.BIAS_RANDOM_STRENGTH * pressureScale;
@@ -232,7 +232,7 @@ export class LSTM {
         const block = this._getBlockToMutate();
         const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
 
-        let newWeight = block[weightNum] || this._geneLstm.WEIGHT_SHIFT_STRENGTH;
+        let newWeight = block[weightNum] ?? this._geneLstm.WEIGHT_SHIFT_STRENGTH;
         while (newWeight === block[weightNum]) {
             newWeight =
                 block[weightNum] + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH * pressureScale;
@@ -244,7 +244,7 @@ export class LSTM {
     private _mutateBiasShift(pressureScale: number) {
         const block = this._getBlockToMutate();
 
-        let newBias = block.bias || this._geneLstm.BIAS_SHIFT_STRENGTH;
+        let newBias = block.bias ?? this._geneLstm.BIAS_SHIFT_STRENGTH;
         while (newBias === block.bias) {
             newBias = block.bias + (Math.random() * 2 - 1) * this._geneLstm.BIAS_SHIFT_STRENGTH * pressureScale;
         }

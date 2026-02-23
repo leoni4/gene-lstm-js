@@ -1,5 +1,6 @@
 import { Genome } from './genome.js';
 import { Species } from './species.js';
+import type { SeqInput } from './types/index.js';
 
 export class Client {
     species: Species | null;
@@ -24,7 +25,7 @@ export class Client {
         return this.genome.distance(client.genome);
     }
 
-    calculate(input: number[]): number[] {
+    calculate(input: SeqInput): number[] {
         return this.genome.calculate(input);
     }
 }

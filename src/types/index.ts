@@ -55,3 +55,5 @@ export interface SleepingBlockConfig {
     candidateBias: number; // Neutral
     initialAlpha: number; // Skip connection initial value
 }
+
+export type SeqInput = number[] | number[][];

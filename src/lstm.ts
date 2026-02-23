@@ -3,19 +3,31 @@ import type { LstmOptions } from './types/index.js';
 
 type ActivationName = 'sigmoid' | 'tanh';
 type ActivationFunction = (x: number) => number;
+type WeightTarget = { kind: 'scalar'; key: 'weight1' | 'weight2' } | { kind: 'vector'; index: number };
 
 function sigmoid(x: number): number {
     return 1 / (1 + Math.exp(-x));
 }
+
+const flattenBlock = (b: ShortMemoryBlock): number[] => {
+    const base = [b.weight1, b.weight2, b.bias];
+
+    if (b.weightIn && b.weightIn.length) {
+        base.push(...b.weightIn);
+    }
+
+    return base;
+};
 
 export class ShortMemoryBlock {
     private _activationName: ActivationName;
     private _activationFunction: ActivationFunction;
     weight1: number = 0;
     weight2: number = 0;
+    weightIn?: number[];
     bias: number = 0;
 
-    constructor(activation: ActivationName, weight1?: number, weight2?: number, bias?: number) {
+    constructor(activation: ActivationName, weight1?: number, weight2?: number, bias?: number, weightIn?: number[]) {
         this._activationName = activation;
         if (this._activationName === 'sigmoid') {
             this._activationFunction = sigmoid;
@@ -25,15 +37,31 @@ export class ShortMemoryBlock {
         this.weight1 = weight1 ?? Math.random() * 2 - 1;
         this.weight2 = weight2 ?? Math.random() * 2 - 1;
         this.bias = bias ?? Math.random() * 2 - 1;
+        this.weightIn = weightIn;
     }
 
-    calculate(input: number, shortMemory: number): number {
-        const shortMemoryCalculated = this.weight1 * shortMemory;
-        const inputCalculated = this.weight2 * input;
-        const summ = shortMemoryCalculated + inputCalculated + this.bias;
-        const out = this._activationFunction(summ);
+    calculate(input: number | number[], shortMemory: number): number {
+        const rec = this.weight1 * shortMemory;
 
-        return out;
+        let inTerm = 0;
+
+        if (Array.isArray(input)) {
+            // vector input
+            if (!this.weightIn || this.weightIn.length !== input.length) {
+                // init once, stable size
+                this.weightIn = new Array(input.length).fill(0).map(() => Math.random() * 2 - 1);
+            }
+            for (let i = 0; i < input.length; i++) {
+                inTerm += this.weightIn[i] * input[i];
+            }
+        } else {
+            // scalar input (old behavior)
+            inTerm = this.weight2 * input;
+        }
+
+        const sum = rec + inTerm + this.bias;
+
+        return this._activationFunction(sum);
     }
 }
 
@@ -111,22 +139,62 @@ export class LSTM {
 
     flattenWeights(): number[] {
         return [
-            this._forgetGate.weight1,
-            this._forgetGate.weight2,
-            this._forgetGate.bias,
-            this._potentialLongToRem.weight1,
-            this._potentialLongToRem.weight2,
-            this._potentialLongToRem.bias,
-            this._potentialLongMemory.weight1,
-            this._potentialLongMemory.weight2,
-            this._potentialLongMemory.bias,
-            this._shortMemoryToRemember.weight1,
-            this._shortMemoryToRemember.weight2,
-            this._shortMemoryToRemember.bias,
+            ...flattenBlock(this._forgetGate),
+            ...flattenBlock(this._potentialLongToRem),
+            ...flattenBlock(this._potentialLongMemory),
+            ...flattenBlock(this._shortMemoryToRemember),
         ];
     }
 
-    private _predictUnit(input: number) {
+    private _pickWeightTarget(block: ShortMemoryBlock): WeightTarget {
+        const canVector = !!block.weightIn && block.weightIn.length > 0;
+
+        if (canVector && Math.random() < 0.3) {
+            const idx = Math.floor(Math.random() * block.weightIn!.length);
+
+            return { kind: 'vector', index: idx };
+        }
+
+        const key = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
+
+        return { kind: 'scalar', key };
+    }
+
+    private _ensureWeightIn(block: ShortMemoryBlock) {
+        if (!block.weightIn || block.weightIn.length === 0) {
+            const n = this._geneLstm.INPUT_FEATURES ?? 3;
+            block.weightIn = new Array(n).fill(0).map(() => Math.random() * 2 - 1);
+        }
+    }
+
+    calculate(input: number[] | number[][], fullSeq = false): number[] {
+        this.longMemory = 0;
+        this.shortMemory = 0;
+
+        const fullSeqMemory: number[] = [];
+
+        // input is number[][]
+        if (Array.isArray(input[0])) {
+            const seq = input as number[][];
+            for (const x_t of seq) {
+                this._predictUnit(x_t);
+                if (fullSeq) fullSeqMemory.push(this.shortMemory);
+            }
+
+            return fullSeq ? fullSeqMemory : [this.shortMemory];
+        }
+
+        // input is number[]
+        const seq = input as number[];
+        for (const num of seq) {
+            this._predictUnit(num);
+            if (fullSeq) fullSeqMemory.push(this.shortMemory);
+        }
+
+        return fullSeq ? fullSeqMemory : [this.shortMemory];
+    }
+
+    private _predictUnit(input: number | number[]) {
         const forgetOut = this._forgetGate.calculate(input, this.shortMemory);
         this.longMemory *= forgetOut;
 
@@ -141,20 +209,6 @@ export class LSTM {
         this.shortMemory = output;
 
         return output;
-    }
-
-    calculate(input: number[], fullSeq = false): number[] {
-        this.longMemory = 0;
-        this.shortMemory = 0;
-        const fullSeqMemory: number[] = [];
-        input.forEach(num => {
-            this._predictUnit(num);
-            if (fullSeq) {
-                fullSeqMemory.push(this.shortMemory);
-            }
-        });
-
-        return fullSeq ? fullSeqMemory : [this.shortMemory];
     }
 
     model(): LstmOptions {
@@ -207,14 +261,33 @@ export class LSTM {
 
     private _mutateWeightRandom(pressureScale: number) {
         const block = this._getBlockToMutate();
-        const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
+        this._ensureWeightIn(block);
 
-        let newWeight = block[weightNum] ?? this._geneLstm.WEIGHT_RANDOM_STRENGTH;
-        while (newWeight === block[weightNum]) {
-            newWeight =
-                (Math.random() * newWeight * 2 - newWeight) * this._geneLstm.WEIGHT_RANDOM_STRENGTH * pressureScale;
+        const target = this._pickWeightTarget(block);
+
+        if (target.kind === 'scalar') {
+            const key = target.key;
+            const base = Math.abs(block[key] ?? 1); // avoid 0 base
+            let newWeight = block[key] ?? 0;
+
+            while (newWeight === block[key]) {
+                newWeight = (Math.random() * 2 - 1) * base * this._geneLstm.WEIGHT_RANDOM_STRENGTH * pressureScale;
+            }
+
+            block[key] = newWeight;
+
+            return;
         }
-        block[weightNum] = newWeight;
+
+        const i = target.index;
+        let newWeight = block.weightIn![i] ?? 0;
+
+        while (newWeight === block.weightIn![i]) {
+            const range = this._geneLstm.WEIGHT_RANDOM_STRENGTH * pressureScale;
+            newWeight = (Math.random() * 2 - 1) * range;
+        }
+
+        block.weightIn![i] = newWeight;
     }
 
     private _mutateBiasRandom(pressureScale: number) {
@@ -230,15 +303,33 @@ export class LSTM {
 
     private _mutateWeightShift(pressureScale: number) {
         const block = this._getBlockToMutate();
-        const weightNum = `weight${Math.floor(Math.random() * 2 + 1)}` as 'weight1' | 'weight2';
 
-        let newWeight = block[weightNum] ?? this._geneLstm.WEIGHT_SHIFT_STRENGTH;
-        while (newWeight === block[weightNum]) {
-            newWeight =
-                block[weightNum] + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH * pressureScale;
+        this._ensureWeightIn(block);
+
+        const target = this._pickWeightTarget(block);
+
+        if (target.kind === 'scalar') {
+            const key = target.key;
+            const current = block[key] ?? this._geneLstm.WEIGHT_SHIFT_STRENGTH;
+
+            let newWeight = current;
+            while (newWeight === current) {
+                newWeight = current + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH * pressureScale;
+            }
+            block[key] = Math.max(-10, Math.min(10, newWeight));
+
+            return;
         }
-        // Clamp to reasonable range
-        block[weightNum] = Math.max(-10, Math.min(10, newWeight));
+
+        // vector
+        const i = target.index;
+        const current = block.weightIn![i] ?? 0;
+
+        let newWeight = current;
+        while (newWeight === current) {
+            newWeight = current + (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH * pressureScale;
+        }
+        block.weightIn![i] = Math.max(-10, Math.min(10, newWeight));
     }
 
     private _mutateBiasShift(pressureScale: number) {

@@ -21,6 +21,7 @@ interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
     C2?: number;
+    INPUT_FEATURES?: number;
     SURVIVORS?: number;
     MUTATION_RATE?: number;
     BIAS_SHIFT_STRENGTH?: number;
@@ -54,6 +55,7 @@ export class GeneLSTM {
     private _clients: Client[] = [];
     private _species: Species[] = [];
     private _maxClients: number;
+    private _INPUT_FEATURES: number;
 
     private _CP: number;
     private _C1: number;
@@ -133,6 +135,7 @@ export class GeneLSTM {
         this._WEIGHT_SHIFT_STRENGTH = options?.WEIGHT_SHIFT_STRENGTH ?? 0.2;
         this._WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH ?? 1.0;
         this._ALPHA_SHIFT_STRENGTH = options?.ALPHA_SHIFT_STRENGTH ?? 0.01;
+        this._INPUT_FEATURES = options?.INPUT_FEATURES ?? 0;
 
         this._PROBABILITY_MUTATE_ALPHA_SHIFT = options?.PROBABILITY_MUTATE_ALPHA_SHIFT ?? 0.05;
         this._PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT ?? 0.8;
@@ -167,6 +170,10 @@ export class GeneLSTM {
         this._stagnationThreshold = options?.stagnationThreshold ?? 15;
 
         this._init(options?.loadData);
+    }
+
+    get INPUT_FEATURES() {
+        return this._INPUT_FEATURES;
     }
 
     get CP() {

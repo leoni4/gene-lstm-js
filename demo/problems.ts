@@ -163,7 +163,7 @@ export const testHierarchicalSegmentXorAdd = {
         valueMax = 1.0,
         seed = 0,
     } = {}) {
-        const inputs: number[][] = [];
+        const inputs: number[][][] = [];
         const outputs: number[] = [];
 
         if (seqLen % segLen !== 0) {
@@ -184,7 +184,7 @@ export const testHierarchicalSegmentXorAdd = {
         const xor = (a: number, b: number) => (a ^ b) & 1;
 
         for (let sample = 0; sample < samples; sample++) {
-            const sampleVec: number[] = [];
+            const sampleVec: number[][] = [];
 
             let finalParity = 0;
 
@@ -215,12 +215,10 @@ export const testHierarchicalSegmentXorAdd = {
                     const marker = i === p1 || i === p2 ? 1 : 0;
                     const segStart = i === 0 ? 1 : 0;
 
-                    // flatten: t0[f0,f1,f2], t1[f0,f1,f2], ...
-                    // sampleVec.push(value, marker, segStart);
-
-                    const packed = value + marker * 2 + segStart * 4; // диапазон [0..7]
-                    const packedNorm11 = packed / 3.5 - 1;
-                    sampleVec.push(packedNorm11);
+                    const value11 = value * 2 - 1; // [0..1] -> [-1..1]
+                    const marker11 = marker ? 1 : -1; // {0,1} -> {-1,1}
+                    const segStart11 = segStart ? 1 : -1;
+                    sampleVec.push([value11, marker11, segStart11]);
                 }
             }
 

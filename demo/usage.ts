@@ -26,6 +26,17 @@ const trainingData = {
     outputs: [0, 1],
 };
 
+process.on('unhandledRejection', (reason: any) => {
+    console.error('UNHANDLED REJECTION:', reason);
+    console.error('STACK:', reason?.stack);
+});
+
+process.on('uncaughtException', (err: any) => {
+    console.error('UNCAUGHT EXCEPTION:', err);
+    console.error('STACK:', err?.stack);
+    process.exitCode = 1;
+});
+
 // const testData = {
 //     inputs: [
 //         [0.1, 0.5, 0.25, 1], // ожидание: ближе к 0
@@ -81,63 +92,75 @@ const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
 const train = (glstm: GeneLSTM, data = trainingData) => {
     let epoch = 0;
     let iter = 0;
-    let bestClient: Client;
+    let bestClient: Client | undefined;
     const EPOCHS = 1000;
     const LAMBDA_MEAN = 0.05;
 
-    return new Promise(resolve => {
+    return new Promise<number>(resolve => {
         const session = async () => {
             epoch++;
-            let error = Infinity;
+
+            let bestError = Infinity;
+
             for (let c = 0; c < glstm.clients.length; c++) {
                 const client = glstm.clients[c];
                 client.bestScore = false;
-                let localError = 0;
+
+                let localErrorSum = 0;
                 let predSum = 0;
+
                 for (let t = 0; t < data.inputs.length; t++) {
                     const input = data.inputs[t];
-                    const output = data.outputs[t];
+                    const target = data.outputs[t];
 
                     iter++;
-                    const out = client.calculate(input)[0];
+                    const out = client.calculate(input)[0]; // убери "as any" если типы уже обновил
+
                     predSum += out;
-                    localError += Math.abs(out - output);
-                    if (iter % 1000 === 0) {
-                        await sleep(0);
-                    }
+                    localErrorSum += Math.abs(out - target);
+
+                    if (iter % 1000 === 0) await sleep(0);
                 }
-                localError = localError / data.inputs.length;
+
+                const localError = localErrorSum / data.inputs.length;
                 const meanPred = predSum / data.inputs.length;
                 const penalty = LAMBDA_MEAN * Math.abs(meanPred - 0.5);
                 const finalError = Math.min(1, localError + penalty);
+
                 client.error = finalError;
                 client.score = 1 - finalError;
-                if (error > localError) {
-                    error = localError;
+
+                // ВАЖНО: выбираем best по finalError, иначе penalty не работает
+                if (finalError < bestError) {
+                    bestError = finalError;
                     bestClient = client;
                 }
             }
-            if (epoch % 1 === 0) {
-                console.log('Epoch:', epoch, ' Error:', error);
-            }
-            if (epoch % 10 === 0) {
-                glstm.printSpecies();
-            }
-            if (epoch >= EPOCHS || error < 0.01) {
-                resolve(error);
+
+            console.log('Epoch:', epoch, ' Error:', bestError);
+
+            if (epoch % 10 === 0) glstm.printSpecies();
+
+            if (epoch >= EPOCHS || bestError < 0.01) {
+                resolve(bestError);
 
                 return;
             }
-            bestClient.bestScore = true;
+
+            if (bestClient) bestClient.bestScore = true;
+
             glstm.evolve();
             session();
         };
+
         session();
     });
 };
 
 const usetraining = async () => {
-    const glstm = new GeneLSTM(100);
+    const glstm = new GeneLSTM(100, {
+        INPUT_FEATURES: 3,
+    });
     glstm.printSpecies();
     const data = testHierarchicalSegmentXorAdd.build();
     console.log('---- START TRAIN -----');
@@ -154,4 +177,5 @@ const usetraining = async () => {
     });
     console.log('---- ----------- -----');
 };
+
 usetraining();

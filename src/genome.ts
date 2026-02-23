@@ -1,6 +1,6 @@
 import { LSTM } from './lstm.js';
 import { GeneLSTM } from './gLstm.js';
-import type { GeneOptions, ShortMemory, LstmOptions } from './types/index.js';
+import type { GeneOptions, ShortMemory, LstmOptions, SeqInput } from './types/index.js';
 
 export class Genome {
     private _glstm: GeneLSTM;
@@ -157,14 +157,15 @@ export class Genome {
         }
     }
 
-    calculate(input: number[]) {
+    calculate(input: SeqInput): number[] {
         let inputPassed = input;
+
         this._lstmArray.forEach((lstm, i) => {
-            const localClc = lstm.calculate(inputPassed, this._lstmArray.length > 1 && this._lstmArray.length > i + 1);
-            inputPassed = localClc;
+            const fullSeq = this._lstmArray.length > 1 && this._lstmArray.length > i + 1;
+            inputPassed = lstm.calculate(inputPassed, fullSeq);
         });
 
-        return inputPassed;
+        return inputPassed as number[];
     }
 
     static crossOver(g1: Genome, g2: Genome): Genome {

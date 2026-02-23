@@ -158,7 +158,7 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
 };
 
 const usetraining = async () => {
-    const glstm = new GeneLSTM(100, {
+    const glstm = new GeneLSTM(200, {
         INPUT_FEATURES: 3,
     });
     glstm.printSpecies();

@@ -485,27 +485,35 @@ export class GeneLSTM {
     evolve(optimization = false) {
         this._evolveCounts++;
         this._optimization = optimization || this._evolveCounts % 10 === 0;
+        //  console.log(1);
+        this._updateChampion();
 
-        // Track best fitness for automatic pressure escalation
+        //  console.log(2);
         if (this._enablePressureEscalation && this._clients.length > 0) {
             const bestClient = this._clients[0]; // Already sorted by score in _normalizeScore
             const currentBestScore = bestClient.score;
             this.updateMutationPressure(currentBestScore, this._evolveCounts);
         }
-
-        this._updateChampion();
+        //  console.log(3);
 
         this._normalizeScore();
 
+        // console.log(4);
         this._genSpecies();
 
+        //  console.log(5);
         // Dynamically adjust CP based on current species count
         this.adjustCP(this._species.length, this._evolveCounts);
 
+        //  console.log(6);
         this._kill();
+        //   console.log(7);
         this._removeExtinct();
+        //  console.log(8);
         this._reproduce();
+        //  console.log(9);
         this._mutate();
+        //  console.log(10);
         console.log('pressure:', this._mutationPressure);
         console.log('---');
     }

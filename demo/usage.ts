@@ -89,11 +89,11 @@ usePreTrained();
 
 const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
 
-const train = (glstm: GeneLSTM, data = trainingData) => {
+const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
     let epoch = 0;
     let iter = 0;
     let bestClient: Client | undefined;
-    const EPOCHS = 1000;
+    const EPOCHS = epochsPasseg;
     const LAMBDA_MEAN = 0.05;
 
     return new Promise<number>(resolve => {
@@ -108,6 +108,7 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
 
                 let localErrorSum = 0;
                 let predSum = 0;
+                let classSolved = 0;
 
                 for (let t = 0; t < data.inputs.length; t++) {
                     const input = data.inputs[t];
@@ -119,13 +120,16 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
                     predSum += out;
                     localErrorSum += Math.abs(out - target);
 
+                    if ((target === 1 && out > 0.5) || (target === 0 && out < 0.5)) classSolved++;
+
                     if (iter % 1000 === 0) await sleep(0);
                 }
 
                 const localError = localErrorSum / data.inputs.length;
                 const meanPred = predSum / data.inputs.length;
                 const penalty = LAMBDA_MEAN * Math.abs(meanPred - 0.5);
-                const finalError = Math.min(1, localError + penalty);
+                const penaltyClass = LAMBDA_MEAN * Math.abs(classSolved / data.inputs.length);
+                const finalError = Math.min(1, localError + penalty + penaltyClass);
 
                 client.error = finalError;
                 client.score = 1 - finalError;
@@ -158,14 +162,14 @@ const train = (glstm: GeneLSTM, data = trainingData) => {
 };
 
 const usetraining = async () => {
-    const glstm = new GeneLSTM(200, {
+    const glstm = new GeneLSTM(100, {
         INPUT_FEATURES: 3,
     });
     glstm.printSpecies();
     const data = testHierarchicalSegmentXorAdd.build();
     console.log('---- START TRAIN -----');
 
-    await train(glstm, data);
+    await train(glstm, data, 1000);
     console.log('---- END TRAIN -----');
 
     const c = glstm.champion || glstm.clients[0];

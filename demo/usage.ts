@@ -157,7 +157,6 @@ const usetraining = async () => {
         console.log('input N', i, 'out', out, `// should be ${data.outputs[i]}`);
     });
     console.log('---- ----------- -----');
-    console.log(JSON.stringify(glstm.model()));
 };
 
 usetraining();

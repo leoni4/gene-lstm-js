@@ -71,6 +71,8 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         stagnationThreshold: options?.stagnationThreshold ?? 15,
 
         loadData: options?.loadData,
+
+        verbose: options?.verbose ?? 0,
     };
 }
 
@@ -110,6 +112,8 @@ interface GeneLSTMOptions {
     mutationPressure?: EMutationPressure;
     enablePressureEscalation?: boolean;
     stagnationThreshold?: number;
+
+    verbose?: number;
 }
 
 export class GeneLSTM {
@@ -187,6 +191,8 @@ export class GeneLSTM {
     private _evolveCounts = 0;
     private _optimization = false;
 
+    private _verbose: number = 0;
+
     constructor(clients: number, options?: GeneLSTMOptions) {
         this._maxClients = clients;
 
@@ -234,6 +240,8 @@ export class GeneLSTM {
         this._mutationPressure = o.mutationPressure;
         this._enablePressureEscalation = o.enablePressureEscalation;
         this._stagnationThreshold = o.stagnationThreshold;
+
+        this._verbose = o.verbose;
 
         this._init(o.loadData);
     }
@@ -420,7 +428,7 @@ export class GeneLSTM {
 
         // Deadband: don't adjust if within acceptable range
         if (Math.abs(error) <= this._cpDeadband) {
-            if (generation !== undefined) {
+            if (generation !== undefined && this._verbose === 2) {
                 console.log(
                     `[Gen ${generation}] CP: ${this._CP.toFixed(4)} | Species: ${speciesCount}/${this._targetSpecies} (within deadband ±${this._cpDeadband}) | No adjustment`,
                 );
@@ -442,7 +450,7 @@ export class GeneLSTM {
         this._CP = Math.max(this._minCP, Math.min(this._maxCP, this._CP));
 
         // Debug logging
-        if (generation !== undefined) {
+        if (generation !== undefined && this._verbose === 2) {
             const direction = error > 0 ? '↑ INCREASE' : '↓ DECREASE';
             console.log(
                 `[Gen ${generation}] CP: ${cpBefore.toFixed(4)} → ${this._CP.toFixed(4)} (${direction}) | Species: ${speciesCount}/${this._targetSpecies} | Error: ${error > 0 ? '+' : ''}${error}`,
@@ -478,7 +486,7 @@ export class GeneLSTM {
                 this._stagnationCounter = 0; // reset stagnation when forcing down
                 this._panicCooldownCounter = this._panicCooldownGenerations;
 
-                if (generation !== undefined) {
+                if (generation !== undefined && this._verbose === 2) {
                     console.log(
                         `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} (PANIC timeout ${this._panicMaxGenerations} gens, cooldown ${this._panicCooldownGenerations} gens)`,
                     );
@@ -523,7 +531,7 @@ export class GeneLSTM {
             if (currentIndex < pressureLevels.length - 1) {
                 // Move one level down towards NORMAL
                 this._mutationPressure = pressureLevels[currentIndex + 1];
-                if (generation !== undefined) {
+                if (generation !== undefined && this._verbose === 2) {
                     console.log(
                         `[Gen ${generation}] Mutation Pressure: ${pressureLevels[currentIndex]} → ${this._mutationPressure} (fitness improved to ${currentBestFitness.toFixed(4)})`,
                     );
@@ -564,7 +572,7 @@ export class GeneLSTM {
                         this._panicCounter = 0;
                     }
 
-                    if (generation !== undefined) {
+                    if (generation !== undefined && this._verbose === 2) {
                         console.log(
                             `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} (stagnated for ${levelThreshold} generations, best: ${this._bestFitnessEver.toFixed(4)})`,
                         );
@@ -573,7 +581,7 @@ export class GeneLSTM {
                     // If we could not escalate (max or panic blocked), you may still want to reset counter to avoid spam
                     this._stagnationCounter = 0;
 
-                    if (generation !== undefined && panicBlocked) {
+                    if (generation !== undefined && panicBlocked && this._verbose === 2) {
                         console.log(
                             `[Gen ${generation}] Mutation Pressure: ${this._mutationPressure} (PANIC blocked by cooldown ${this._panicCooldownCounter} gens)`,
                         );
@@ -586,37 +594,25 @@ export class GeneLSTM {
     evolve(optimization = false) {
         this._evolveCounts++;
         this._optimization = optimization || this._evolveCounts % 10 === 0;
-        //  console.log(1);
         this._updateChampion();
 
-        //  console.log(2);
         if (this._enablePressureEscalation && this._clients.length > 0) {
             const bestClient = this._clients[0]; // Already sorted by score in _normalizeScore
             const currentBestScore = bestClient.score;
             this.updateMutationPressure(currentBestScore, this._evolveCounts);
         }
-        //  console.log(3);
 
         this._normalizeScore();
 
-        // console.log(4);
         this._genSpecies();
 
-        //  console.log(5);
         // Dynamically adjust CP based on current species count
         this.adjustCP(this._species.length, this._evolveCounts);
 
-        //  console.log(6);
         this._kill();
-        //   console.log(7);
         this._removeExtinct();
-        //  console.log(8);
         this._reproduce();
-        //  console.log(9);
         this._mutate();
-        //  console.log(10);
-        console.log('pressure:', this._mutationPressure);
-        console.log('---');
     }
 
     private _normalizeScore() {
@@ -757,7 +753,6 @@ export class GeneLSTM {
             return a.score > b.score ? -1 : 1;
         });
 
-        console.log('BEST TO LAST', this._clients[0].score, this._clients[this._clients.length - 1].score);
         // Current best client (already sorted by score in _normalizeScore)
         const currentBest = this._clients[0];
 
@@ -766,7 +761,10 @@ export class GeneLSTM {
             // Create a deep copy of the best client
             this._champion = this._copyClient(currentBest);
             this._championStagnationCount = 0;
-            console.log(`[Gen ${this._evolveCounts}] Champion initialized with score ${currentBest.score.toFixed(4)}`);
+            if (this._verbose === 2)
+                console.log(
+                    `[Gen ${this._evolveCounts}] Champion initialized with score ${currentBest.score.toFixed(4)}`,
+                );
 
             return;
         }
@@ -780,7 +778,8 @@ export class GeneLSTM {
             // Update champion with new best
             this._champion = this._copyClient(currentBest);
             this._championStagnationCount = 0;
-            console.log(`[Gen ${this._evolveCounts}] Champion updated with score ${currentBest.score.toFixed(4)}`);
+            if (this._verbose === 2)
+                console.log(`[Gen ${this._evolveCounts}] Champion updated with score ${currentBest.score.toFixed(4)}`);
         } else {
             // No improvement - increment stagnation counter
             this._championStagnationCount++;
@@ -790,10 +789,10 @@ export class GeneLSTM {
                 // Re-insert champion by replacing the worst client
                 const worstClientIndex = this._clients.length - 1;
                 const worstClient = this._clients[worstClientIndex];
-
-                console.log(
-                    `[Gen ${this._evolveCounts}] Champion re-inserted after ${this._championStagnationCount} stagnant epochs (replacing worst client with score ${worstClient.score.toFixed(4)})`,
-                );
+                if (this._verbose === 2)
+                    console.log(
+                        `[Gen ${this._evolveCounts}] Champion re-inserted after ${this._championStagnationCount} stagnant epochs (replacing worst client with score ${worstClient.score.toFixed(4)})`,
+                    );
 
                 // Detach worst client from its species
                 // The species will clean up in the next _genSpecies call

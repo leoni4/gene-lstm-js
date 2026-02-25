@@ -214,27 +214,45 @@ export class LSTM {
     calculate(input: number[] | number[][], fullSeq = false): number[] {
         this._ensureConsistentSizes();
 
-        // reset state each forward (как у тебя было)
         this.longMemory.fill(0);
         this.shortMemory.fill(0);
 
         const fullSeqMemory: number[] = [];
 
+        // ===== input is number[][] =====
         if (Array.isArray(input[0])) {
             const seq = input as number[][];
             for (const x_t of seq) {
                 this._predictUnit(x_t);
-                if (fullSeq) fullSeqMemory.push(this._readout()); // можно fullSeq по readout
+                if (fullSeq) fullSeqMemory.push(this._readout());
             }
-            return fullSeq ? fullSeqMemory : [this._readout()];
+
+            const y = this._readout();
+            if (fullSeq) return fullSeqMemory;
+
+            // alpha mix for HEAD only:
+            // baseline: last timestep, first feature (value11) OR any chosen feature
+            const last = seq.length ? seq[seq.length - 1] : [0];
+            const yPrev = typeof last[0] === 'number' ? last[0] : 0;
+
+            const a = this._alpha;
+            return [(1 - a) * yPrev + a * y];
         }
 
+        // ===== input is number[] =====
         const seq = input as number[];
         for (const num of seq) {
             this._predictUnit(num);
             if (fullSeq) fullSeqMemory.push(this._readout());
         }
-        return fullSeq ? fullSeqMemory : [this._readout()];
+
+        const y = this._readout();
+        if (fullSeq) return fullSeqMemory;
+
+        // alpha mix for HEAD only:
+        const lastIn = seq.length ? seq[seq.length - 1] : 0;
+        const a = this._alpha;
+        return [(1 - a) * lastIn + a * y];
     }
 
     private _readout(): number {

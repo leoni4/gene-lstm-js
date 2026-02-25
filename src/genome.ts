@@ -77,7 +77,7 @@ export class Genome {
 
         const randSmall = () => Math.random() * 2 * eps - eps;
 
-        const inputN = this._glstm.INPUT_FEATURES || 3;
+        const inputN = this._glstm.INPUT_FEATURES || 1;
 
         const makeUnit = (bias: number): GateUnitOptions => ({
             weight1: randSmall(),

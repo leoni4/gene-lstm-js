@@ -206,7 +206,7 @@ export class LSTM {
 
     private _ensureWeightIn(block: ShortMemoryBlock) {
         if (!block.weightIn || block.weightIn.length === 0) {
-            const n = this._geneLstm.INPUT_FEATURES ?? 3;
+            const n = this._geneLstm.INPUT_FEATURES ?? 1;
             block.weightIn = new Array(n).fill(0).map(() => Math.random() * 2 - 1);
         }
     }

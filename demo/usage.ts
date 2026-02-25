@@ -1,5 +1,5 @@
 import { GeneLSTM, Client } from '../src/index.js';
-import type { LstmOptions } from '../src/types/index.js';
+import { PRE_TRAINED_DATA } from './DATA.js';
 import {
     testLstmSineNext01,
     testLstmAdding01,
@@ -49,25 +49,9 @@ process.on('uncaughtException', (err: any) => {
 // };
 
 const usePreTrained = () => {
-    const options: LstmOptions = {
-        hiddenSize: 1,
-
-        forgetGate: [
-            { weight1: 2.7, weight2: 1.63, bias: 1.62 }, // weightIn опц., но лучше задать
-        ],
-        potentialLongToRem: [{ weight1: 2, weight2: 1.65, bias: 0.6 }],
-        potentialLongMemory: [{ weight1: 1.41, weight2: 0.94, bias: -0.32 }],
-        shortMemoryToRemember: [{ weight1: 4.38, weight2: -0.19, bias: 0.59 }],
-
-        // readout: y = sigmoid(dot(readoutW, h) + readoutB)
-        // при hiddenSize=1 это просто sigmoid(readoutW[0]*h0 + b)
-        readoutW: [1],
-        readoutB: 0,
-
-        alpha: 1.0,
-    };
-
-    const glstm = new GeneLSTM(1, { loadData: [options] });
+    const glstm = new GeneLSTM(1, {
+        loadData: PRE_TRAINED_DATA,
+    });
 
     const c = glstm.clients[0];
     const out1 = c.calculate(trainingData.inputs[0]);
@@ -156,10 +140,10 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
 
 const usetraining = async () => {
     const glstm = new GeneLSTM(100, {
-        INPUT_FEATURES: 3,
+        // INPUT_FEATURES: 3,
     });
     glstm.printSpecies();
-    const data = testHierarchicalSegmentXorAdd.build();
+    const data = trainingData; // testHierarchicalSegmentXorAdd.build();
     console.log('---- START TRAIN -----');
 
     await train(glstm, data, 1000);
@@ -173,6 +157,7 @@ const usetraining = async () => {
         console.log('input N', i, 'out', out, `// should be ${data.outputs[i]}`);
     });
     console.log('---- ----------- -----');
+    console.log(JSON.stringify(glstm.model()));
 };
 
 usetraining();

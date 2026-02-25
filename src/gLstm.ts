@@ -6,15 +6,72 @@ import { RandomSelector } from './randomSelector.js';
 import type { GeneOptions, SleepingBlockConfig } from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST } from './types/index.js';
 
-function getDefaultCP(clients: number): number {
-    if (clients <= 100) {
-        return 5;
-    }
-    if (clients > 100 && clients <= 500) {
-        return 8;
-    }
+type ResolvedGeneLSTMOptions = Required<Omit<GeneLSTMOptions, 'sleepingBlockConfig' | 'loadData'>> & {
+    sleepingBlockConfig: SleepingBlockConfig;
+    loadData?: GeneOptions;
+};
 
+function getDefaultTargetSpecies(clients: number): number {
+    if (clients <= 100) return 5;
+    if (clients <= 500) return 8;
     return 10;
+}
+
+function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): ResolvedGeneLSTMOptions {
+    return {
+        CP: options?.CP ?? 0.1,
+        C1: options?.C1 ?? 1.0,
+        C2: options?.C2 ?? 0.4,
+
+        INPUT_FEATURES: options?.INPUT_FEATURES ?? 1,
+
+        SURVIVORS: options?.SURVIVORS ?? 0.8,
+        MUTATION_RATE: options?.MUTATION_RATE ?? 0.05,
+
+        BIAS_SHIFT_STRENGTH: options?.BIAS_SHIFT_STRENGTH ?? 0.2,
+        BIAS_RANDOM_STRENGTH: options?.BIAS_RANDOM_STRENGTH ?? 1.0,
+        WEIGHT_SHIFT_STRENGTH: options?.WEIGHT_SHIFT_STRENGTH ?? 0.2,
+        WEIGHT_RANDOM_STRENGTH: options?.WEIGHT_RANDOM_STRENGTH ?? 1.0,
+        ALPHA_SHIFT_STRENGTH: options?.ALPHA_SHIFT_STRENGTH ?? 0.01,
+
+        PROBABILITY_MUTATE_ALPHA_SHIFT: options?.PROBABILITY_MUTATE_ALPHA_SHIFT ?? 0.05,
+        PROBABILITY_MUTATE_BIAS_SHIFT: options?.PROBABILITY_MUTATE_BIAS_SHIFT ?? 0.8,
+        PROBABILITY_MUTATE_BIAS_RANDOM: options?.PROBABILITY_MUTATE_BIAS_RANDOM ?? 0.1,
+        PROBABILITY_MUTATE_WEIGHT_SHIFT: options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.8,
+        PROBABILITY_MUTATE_WEIGHT_RANDOM: options?.PROBABILITY_MUTATE_WEIGHT_RANDOM ?? 0.1,
+
+        PROBABILITY_MUTATE_LSTM_BLOCK: options?.PROBABILITY_MUTATE_LSTM_BLOCK ?? 0.01,
+        PROBABILITY_ADD_BLOCK_APPEND: options?.PROBABILITY_ADD_BLOCK_APPEND ?? 0.92,
+        PROBABILITY_REMOVE_BLOCK: options?.PROBABILITY_REMOVE_BLOCK ?? 0.1,
+
+        PROBABILITY_MUTATE_ADD_UNIT: options?.PROBABILITY_MUTATE_ADD_UNIT ?? 0.02,
+        PROBABILITY_MUTATE_REMOVE_UNIT: options?.PROBABILITY_MUTATE_REMOVE_UNIT ?? 0.01,
+
+        PROBABILITY_MUTATE_READOUT_W: options?.PROBABILITY_MUTATE_READOUT_W ?? 0.8,
+        PROBABILITY_MUTATE_READOUT_B: options?.PROBABILITY_MUTATE_READOUT_B ?? 0.2,
+
+        sleepingBlockConfig: {
+            epsilon: 0.002,
+            forgetBias: 1.5,
+            inputBias: -1.5,
+            outputBias: 0.0,
+            candidateBias: 0.0,
+            initialAlpha: 0.01,
+            ...options?.sleepingBlockConfig,
+        },
+
+        targetSpecies: options?.targetSpecies ?? getDefaultTargetSpecies(clients),
+        cpAdjustRate: options?.cpAdjustRate ?? 0.2,
+        cpDeadband: options?.cpDeadband ?? 1,
+        minCP: options?.minCP ?? 0.01,
+        maxCP: options?.maxCP ?? 10.0,
+
+        mutationPressure: options?.mutationPressure ?? EMutationPressure.NORMAL,
+        enablePressureEscalation: options?.enablePressureEscalation ?? true,
+        stagnationThreshold: options?.stagnationThreshold ?? 15,
+
+        loadData: options?.loadData,
+    };
 }
 
 interface GeneLSTMOptions {
@@ -133,55 +190,52 @@ export class GeneLSTM {
     constructor(clients: number, options?: GeneLSTMOptions) {
         this._maxClients = clients;
 
-        this._CP = options?.CP ?? 0.1;
-        this._C1 = options?.C1 ?? 1.0;
-        this._C2 = options?.C2 ?? 0.4;
-        this._SURVIVORS = options?.SURVIVORS ?? 0.8;
-        this._MUTATION_RATE = options?.MUTATION_RATE ?? 0.05;
-        this._BIAS_SHIFT_STRENGTH = options?.BIAS_SHIFT_STRENGTH ?? 0.2;
-        this._BIAS_RANDOM_STRENGTH = options?.BIAS_RANDOM_STRENGTH ?? 1.0;
-        this._WEIGHT_SHIFT_STRENGTH = options?.WEIGHT_SHIFT_STRENGTH ?? 0.2;
-        this._WEIGHT_RANDOM_STRENGTH = options?.WEIGHT_RANDOM_STRENGTH ?? 1.0;
-        this._ALPHA_SHIFT_STRENGTH = options?.ALPHA_SHIFT_STRENGTH ?? 0.01;
-        this._INPUT_FEATURES = options?.INPUT_FEATURES ?? 0;
+        const o = resolveGeneLstmOptions(clients, options);
 
-        this._PROBABILITY_MUTATE_ALPHA_SHIFT = options?.PROBABILITY_MUTATE_ALPHA_SHIFT ?? 0.05;
-        this._PROBABILITY_MUTATE_BIAS_SHIFT = options?.PROBABILITY_MUTATE_BIAS_SHIFT ?? 0.8;
-        this._PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM ?? 0.1;
-        this._PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.8;
-        this._PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM ?? 0.1;
-        this._PROBABILITY_MUTATE_LSTM_BLOCK = options?.PROBABILITY_MUTATE_LSTM_BLOCK ?? 0.01;
-        this._PROBABILITY_ADD_BLOCK_APPEND = options?.PROBABILITY_ADD_BLOCK_APPEND ?? 0.92;
-        this._PROBABILITY_REMOVE_BLOCK = options?.PROBABILITY_REMOVE_BLOCK ?? 0.1;
-        this._PROBABILITY_MUTATE_ADD_UNIT = options?.PROBABILITY_MUTATE_ADD_UNIT ?? 0.05;
-        this._PROBABILITY_MUTATE_REMOVE_UNIT = options?.PROBABILITY_MUTATE_REMOVE_UNIT ?? 0.02;
-        this._PROBABILITY_MUTATE_READOUT_W = options?.PROBABILITY_MUTATE_READOUT_W ?? 0.8;
-        this._PROBABILITY_MUTATE_READOUT_B = options?.PROBABILITY_MUTATE_READOUT_B ?? 0.2;
+        this._CP = o.CP;
+        this._C1 = o.C1;
+        this._C2 = o.C2;
 
-        // Configure sleeping block initialization for non-destructive mutations
-        this._sleepingBlockConfig = {
-            epsilon: 0.002,
-            forgetBias: 1.5,
-            inputBias: -1.5,
-            outputBias: 0.0,
-            candidateBias: 0.0,
-            initialAlpha: 0.01,
-            ...options?.sleepingBlockConfig,
-        };
+        this._INPUT_FEATURES = o.INPUT_FEATURES;
 
-        // Dynamic CP adjustment parameters
-        this._targetSpecies = options?.targetSpecies ?? getDefaultCP(clients);
-        this._cpAdjustRate = options?.cpAdjustRate ?? 0.2;
-        this._cpDeadband = options?.cpDeadband ?? 1;
-        this._minCP = options?.minCP ?? 0.01;
-        this._maxCP = options?.maxCP ?? 10.0;
+        this._SURVIVORS = o.SURVIVORS;
+        this._MUTATION_RATE = o.MUTATION_RATE;
 
-        // Mutation pressure parameters
-        this._mutationPressure = options?.mutationPressure ?? EMutationPressure.NORMAL;
-        this._enablePressureEscalation = options?.enablePressureEscalation ?? true;
-        this._stagnationThreshold = options?.stagnationThreshold ?? 15;
+        this._BIAS_SHIFT_STRENGTH = o.BIAS_SHIFT_STRENGTH;
+        this._BIAS_RANDOM_STRENGTH = o.BIAS_RANDOM_STRENGTH;
+        this._WEIGHT_SHIFT_STRENGTH = o.WEIGHT_SHIFT_STRENGTH;
+        this._WEIGHT_RANDOM_STRENGTH = o.WEIGHT_RANDOM_STRENGTH;
+        this._ALPHA_SHIFT_STRENGTH = o.ALPHA_SHIFT_STRENGTH;
 
-        this._init(options?.loadData);
+        this._PROBABILITY_MUTATE_ALPHA_SHIFT = o.PROBABILITY_MUTATE_ALPHA_SHIFT;
+        this._PROBABILITY_MUTATE_BIAS_SHIFT = o.PROBABILITY_MUTATE_BIAS_SHIFT;
+        this._PROBABILITY_MUTATE_BIAS_RANDOM = o.PROBABILITY_MUTATE_BIAS_RANDOM;
+        this._PROBABILITY_MUTATE_WEIGHT_SHIFT = o.PROBABILITY_MUTATE_WEIGHT_SHIFT;
+        this._PROBABILITY_MUTATE_WEIGHT_RANDOM = o.PROBABILITY_MUTATE_WEIGHT_RANDOM;
+
+        this._PROBABILITY_MUTATE_LSTM_BLOCK = o.PROBABILITY_MUTATE_LSTM_BLOCK;
+        this._PROBABILITY_ADD_BLOCK_APPEND = o.PROBABILITY_ADD_BLOCK_APPEND;
+        this._PROBABILITY_REMOVE_BLOCK = o.PROBABILITY_REMOVE_BLOCK;
+
+        this._PROBABILITY_MUTATE_ADD_UNIT = o.PROBABILITY_MUTATE_ADD_UNIT;
+        this._PROBABILITY_MUTATE_REMOVE_UNIT = o.PROBABILITY_MUTATE_REMOVE_UNIT;
+
+        this._PROBABILITY_MUTATE_READOUT_W = o.PROBABILITY_MUTATE_READOUT_W;
+        this._PROBABILITY_MUTATE_READOUT_B = o.PROBABILITY_MUTATE_READOUT_B;
+
+        this._sleepingBlockConfig = o.sleepingBlockConfig;
+
+        this._targetSpecies = o.targetSpecies;
+        this._cpAdjustRate = o.cpAdjustRate;
+        this._cpDeadband = o.cpDeadband;
+        this._minCP = o.minCP;
+        this._maxCP = o.maxCP;
+
+        this._mutationPressure = o.mutationPressure;
+        this._enablePressureEscalation = o.enablePressureEscalation;
+        this._stagnationThreshold = o.stagnationThreshold;
+
+        this._init(o.loadData);
     }
 
     get INPUT_FEATURES() {
@@ -313,7 +367,10 @@ export class GeneLSTM {
     }
 
     model() {
-        return this._clients[0].genome.lstmArray.map(l => l.model());
+        this._clients.sort((a, b) => {
+            return a.score > b.score ? -1 : 1;
+        });
+        return (this._champion || this._clients[0]).genome.lstmArray.map(l => l.model());
     }
 
     printSpecies() {
@@ -564,7 +621,7 @@ export class GeneLSTM {
 
     private _normalizeScore() {
         let maxScore = 0;
-        const bestScoreSet = [];
+        const bestScoreSet: number[] = [];
         let minScore = Infinity;
 
         for (let i = 0; i < this._clients.length; i += 1) {
@@ -594,15 +651,25 @@ export class GeneLSTM {
             });
         }
 
-        this._clients.sort((a, b) => {
-            return a.score > b.score ? -1 : 1;
-        });
+        this._clients.sort((a, b) => (a.score > b.score ? -1 : 1));
 
         const cof = this._optimization ? 0.1 : 0.01;
 
+        // separate knobs (tune as needed)
+        const depthCof = cof; // penalty for extra LSTM blocks
+        const unitsCof = cof * 0.35; // penalty for hidden units (softer)
+
         this._clients.forEach(item => {
-            const allLayers = item.genome.lstmArray.length;
-            item.score -= (Math.sqrt(Math.sqrt(allLayers)) - 1) * cof;
+            const blocks = item.genome.lstmArray.length;
+
+            // sum hidden size across all blocks
+            const units = item.genome.lstmArray.reduce((acc, lstm) => acc + (lstm.readoutW?.length ?? 1), 0);
+
+            // soft growth penalties
+            const depthPenalty = (Math.sqrt(Math.sqrt(blocks)) - 1) * depthCof;
+            const unitsPenalty = (Math.sqrt(units) - 1) * unitsCof;
+
+            item.score -= depthPenalty + unitsPenalty;
         });
     }
 
@@ -690,6 +757,7 @@ export class GeneLSTM {
             return a.score > b.score ? -1 : 1;
         });
 
+        console.log('BEST TO LAST', this._clients[0].score, this._clients[this._clients.length - 1].score);
         // Current best client (already sorted by score in _normalizeScore)
         const currentBest = this._clients[0];
 

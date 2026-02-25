@@ -50,40 +50,33 @@ process.on('uncaughtException', (err: any) => {
 
 const usePreTrained = () => {
     const options: LstmOptions = {
-        forgetGate: {
-            weight1: 2.7,
-            weight2: 1.63,
-            bias: 1.62,
-        },
-        potentialLongToRem: {
-            weight1: 2,
-            weight2: 1.65,
-            bias: 0.62,
-        },
-        potentialLongMemory: {
-            weight1: 1.41,
-            weight2: 0.94,
-            bias: -0.32,
-        },
-        shortMemoryToRemember: {
-            weight1: 4.38,
-            weight2: -0.19,
-            bias: 0.59,
-        },
+        hiddenSize: 1,
+
+        forgetGate: [
+            { weight1: 2.7, weight2: 1.63, bias: 1.62 }, // weightIn опц., но лучше задать
+        ],
+        potentialLongToRem: [{ weight1: 2, weight2: 1.65, bias: 0.6 }],
+        potentialLongMemory: [{ weight1: 1.41, weight2: 0.94, bias: -0.32 }],
+        shortMemoryToRemember: [{ weight1: 4.38, weight2: -0.19, bias: 0.59 }],
+
+        // readout: y = sigmoid(dot(readoutW, h) + readoutB)
+        // при hiddenSize=1 это просто sigmoid(readoutW[0]*h0 + b)
+        readoutW: [1],
+        readoutB: 0,
+
+        alpha: 1.0,
     };
 
-    const glstm = new GeneLSTM(1, {
-        loadData: [options],
-    });
+    const glstm = new GeneLSTM(1, { loadData: [options] });
 
     const c = glstm.clients[0];
-    const out = c.calculate(trainingData.inputs[0]);
+    const out1 = c.calculate(trainingData.inputs[0]);
     const out2 = c.calculate(trainingData.inputs[1]);
 
     console.log('---- PRE TRAINED -----');
-    console.log('out1', out, `// should be ${trainingData.outputs[0]}`);
+    console.log('out1', out1, `// should be ${trainingData.outputs[0]}`);
     console.log('out2', out2, `// should be ${trainingData.outputs[1]}`);
-    console.log('---- ----------- -----');
+    console.log('----------------------');
 };
 usePreTrained();
 

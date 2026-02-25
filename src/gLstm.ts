@@ -39,6 +39,8 @@ interface GeneLSTMOptions {
     PROBABILITY_REMOVE_BLOCK?: number;
     PROBABILITY_MUTATE_ADD_UNIT?: number;
     PROBABILITY_MUTATE_REMOVE_UNIT?: number;
+    PROBABILITY_MUTATE_READOUT_W?: number;
+    PROBABILITY_MUTATE_READOUT_B?: number;
     sleepingBlockConfig?: Partial<SleepingBlockConfig>;
     loadData?: GeneOptions;
     // Dynamic CP adjustment parameters
@@ -83,6 +85,8 @@ export class GeneLSTM {
     private _PROBABILITY_REMOVE_BLOCK: number;
     private _PROBABILITY_MUTATE_ADD_UNIT: number;
     private _PROBABILITY_MUTATE_REMOVE_UNIT: number;
+    private _PROBABILITY_MUTATE_READOUT_W: number;
+    private _PROBABILITY_MUTATE_READOUT_B: number;
 
     private _sleepingBlockConfig: SleepingBlockConfig;
 
@@ -151,6 +155,8 @@ export class GeneLSTM {
         this._PROBABILITY_REMOVE_BLOCK = options?.PROBABILITY_REMOVE_BLOCK ?? 0.1;
         this._PROBABILITY_MUTATE_ADD_UNIT = options?.PROBABILITY_MUTATE_ADD_UNIT ?? 0.05;
         this._PROBABILITY_MUTATE_REMOVE_UNIT = options?.PROBABILITY_MUTATE_REMOVE_UNIT ?? 0.02;
+        this._PROBABILITY_MUTATE_READOUT_W = options?.PROBABILITY_MUTATE_READOUT_W ?? 0.8;
+        this._PROBABILITY_MUTATE_READOUT_B = options?.PROBABILITY_MUTATE_READOUT_B ?? 0.2;
 
         // Configure sleeping block initialization for non-destructive mutations
         this._sleepingBlockConfig = {
@@ -245,6 +251,12 @@ export class GeneLSTM {
     get PROBABILITY_MUTATE_REMOVE_UNIT() {
         return this._PROBABILITY_MUTATE_REMOVE_UNIT;
     }
+    get PROBABILITY_MUTATE_READOUT_W() {
+        return this._PROBABILITY_MUTATE_READOUT_W;
+    }
+    get PROBABILITY_MUTATE_READOUT_B() {
+        return this._PROBABILITY_MUTATE_READOUT_B;
+    }
     get sleepingBlockConfig() {
         return this._sleepingBlockConfig;
     }
@@ -305,12 +317,32 @@ export class GeneLSTM {
     }
 
     printSpecies() {
+        const totalClients = this._clients.length;
+
+        const totalDepth = this._clients.reduce((acc, c) => acc + c.genome.lstmArray.length, 0);
+
+        const totalUnits = this._clients.reduce((acc, c) => {
+            return (
+                acc +
+                c.genome.lstmArray.reduce((uAcc, lstm) => {
+                    // safest: readoutW length reflects hiddenSize after _ensureConsistentSizes
+                    return uAcc + (lstm.readoutW?.length ?? lstm.model().hiddenSize ?? 1);
+                }, 0)
+            );
+        }, 0);
+
+        const totalBlocks = totalDepth;
+        const avgDepth = totalClients ? totalDepth / totalClients : 0;
+        const avgUnitsPerBlock = totalBlocks ? totalUnits / totalBlocks : 0;
+
         console.log(
             '### Species:',
             this._species.length,
-            '# Complecity:',
-            this._clients.reduce((acc, c) => c.genome.lstmArray.length + acc, 0),
+            '| Complexity:',
+            `depth=${totalDepth} (avg ${avgDepth.toFixed(2)})`,
+            `units=${totalUnits} (avg/block ${avgUnitsPerBlock.toFixed(2)})`,
         );
+
         for (let i = 0; i < this._species.length; i += 1) {
             console.log('#', this._species[i].score, this._species[i].size());
         }

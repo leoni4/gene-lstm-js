@@ -129,7 +129,8 @@ export class LSTM {
             this._potentialLongMemory = new Array(H).fill(0).map(() => new ShortMemoryBlock('tanh'));
             this._shortMemoryToRemember = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
 
-            this.readoutW = new Array(H).fill(0);
+            const eps = 0.1;
+            this.readoutW = new Array(H).fill(0).map(() => (Math.random() * 2 - 1) * eps);
             this.readoutB = 0;
         }
 
@@ -422,6 +423,18 @@ export class LSTM {
         removeAt(this.readoutW);
     }
 
+    private _mutateReadoutWeightShift(pressureScale: number) {
+        this._ensureConsistentSizes();
+        const i = Math.floor(Math.random() * this.readoutW.length);
+        const delta = (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH * pressureScale;
+        this.readoutW[i] = Math.max(-10, Math.min(10, this.readoutW[i] + delta));
+    }
+
+    private _mutateReadoutBiasShift(pressureScale: number) {
+        const delta = (Math.random() * 2 - 1) * this._geneLstm.BIAS_SHIFT_STRENGTH * pressureScale;
+        this.readoutB = Math.max(-10, Math.min(10, this.readoutB + delta));
+    }
+
     mutate() {
         // Apply weights mutation pressure to all weight/bias mutations
         const pressure = this._geneLstm.getMutationPressure();
@@ -433,6 +446,20 @@ export class LSTM {
         }
         if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_REMOVE_UNIT * topologyPressure) {
             this._mutateRemoveUnit();
+        }
+
+        if (
+            Math.random() <
+            this._geneLstm.PROBABILITY_MUTATE_READOUT_W * this._geneLstm.MUTATION_RATE * weightsPressure
+        ) {
+            this._mutateReadoutWeightShift(weightsPressure);
+        }
+
+        if (
+            Math.random() <
+            this._geneLstm.PROBABILITY_MUTATE_READOUT_B * this._geneLstm.MUTATION_RATE * weightsPressure
+        ) {
+            this._mutateReadoutBiasShift(weightsPressure);
         }
 
         if (

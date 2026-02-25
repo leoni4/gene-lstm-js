@@ -19,6 +19,13 @@ const flattenBlock = (b: ShortMemoryBlock): number[] => {
     return base;
 };
 
+const blockToOptions = (b: ShortMemoryBlock) => ({
+    weight1: b.weight1,
+    weight2: b.weight2,
+    bias: b.bias,
+    weightIn: b.weightIn ? [...b.weightIn] : undefined,
+});
+
 export class ShortMemoryBlock {
     private _activationName: ActivationName;
     private _activationFunction: ActivationFunction;
@@ -76,56 +83,61 @@ export class OutputBlock {
 export class LSTM {
     private _geneLstm: GeneLSTM;
 
-    longMemory: number = 0;
-    shortMemory: number = 0;
+    longMemory: number[];
+    shortMemory: number[];
 
-    private _forgetGate: ShortMemoryBlock;
-    private _potentialLongToRem: ShortMemoryBlock;
-    private _potentialLongMemory: ShortMemoryBlock;
+    readoutW: number[];
+    readoutB: number;
 
-    private _shortMemoryToRemember: ShortMemoryBlock;
+    private _forgetGate: ShortMemoryBlock[];
+    private _potentialLongToRem: ShortMemoryBlock[];
+    private _potentialLongMemory: ShortMemoryBlock[];
 
-    private _outputGate: OutputBlock;
+    private _shortMemoryToRemember: ShortMemoryBlock[];
 
     // Skip connection strength for non-destructive mutations
     private _alpha: number;
 
-    constructor(GeneLSTM: GeneLSTM, options?: LstmOptions) {
-        this._geneLstm = GeneLSTM;
-        this._alpha = options?.alpha ?? 1.0; // Default: no skip connection
+    constructor(geneLstm: GeneLSTM, options?: LstmOptions) {
+        this._geneLstm = geneLstm;
+        this._alpha = options?.alpha ?? 1.0;
+
+        const H = options?.hiddenSize ?? 1;
+
+        const makeBlock = (act: ActivationName, u?: any) =>
+            new ShortMemoryBlock(act, u?.weight1, u?.weight2, u?.bias, u?.weightIn);
 
         if (options) {
-            this._forgetGate = new ShortMemoryBlock(
-                'sigmoid',
-                options.forgetGate.weight1,
-                options.forgetGate.weight2,
-                options.forgetGate.bias,
-            );
-            this._potentialLongToRem = new ShortMemoryBlock(
-                'sigmoid',
-                options.potentialLongToRem.weight1,
-                options.potentialLongToRem.weight2,
-                options.potentialLongToRem.bias,
-            );
-            this._potentialLongMemory = new ShortMemoryBlock(
-                'tanh',
-                options.potentialLongMemory.weight1,
-                options.potentialLongMemory.weight2,
-                options.potentialLongMemory.bias,
-            );
-            this._shortMemoryToRemember = new ShortMemoryBlock(
-                'sigmoid',
-                options.shortMemoryToRemember.weight1,
-                options.shortMemoryToRemember.weight2,
-                options.shortMemoryToRemember.bias,
-            );
+            // gates restored from arrays
+            this._forgetGate = new Array(H).fill(0).map((_, i) => makeBlock('sigmoid', options.forgetGate[i]));
+            this._potentialLongToRem = new Array(H)
+                .fill(0)
+                .map((_, i) => makeBlock('sigmoid', options.potentialLongToRem[i]));
+            this._potentialLongMemory = new Array(H)
+                .fill(0)
+                .map((_, i) => makeBlock('tanh', options.potentialLongMemory[i]));
+            this._shortMemoryToRemember = new Array(H)
+                .fill(0)
+                .map((_, i) => makeBlock('sigmoid', options.shortMemoryToRemember[i]));
+
+            this.readoutW = options.readoutW?.length === H ? [...options.readoutW] : new Array(H).fill(0);
+            this.readoutB = options.readoutB ?? 0;
         } else {
-            this._forgetGate = new ShortMemoryBlock('sigmoid');
-            this._potentialLongToRem = new ShortMemoryBlock('sigmoid');
-            this._potentialLongMemory = new ShortMemoryBlock('tanh');
-            this._shortMemoryToRemember = new ShortMemoryBlock('sigmoid');
+            // fresh random
+            this._forgetGate = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
+            this._potentialLongToRem = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
+            this._potentialLongMemory = new Array(H).fill(0).map(() => new ShortMemoryBlock('tanh'));
+            this._shortMemoryToRemember = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
+
+            this.readoutW = new Array(H).fill(0);
+            this.readoutB = 0;
         }
-        this._outputGate = new OutputBlock();
+
+        this.longMemory = new Array(H).fill(0);
+        this.shortMemory = new Array(H).fill(0);
+
+        // normalize sizes if something was off
+        this._ensureConsistentSizes();
     }
 
     get alpha(): number {
@@ -137,13 +149,44 @@ export class LSTM {
         this._alpha = Math.max(0, Math.min(1, value));
     }
 
+    private _hiddenSize(): number {
+        return Math.max(1, this.readoutW.length || 1);
+    }
+
+    private _ensureConsistentSizes() {
+        const H = this._hiddenSize();
+
+        // init memories if needed
+        if (!this.longMemory || this.longMemory.length !== H) this.longMemory = new Array(H).fill(0);
+        if (!this.shortMemory || this.shortMemory.length !== H) this.shortMemory = new Array(H).fill(0);
+
+        const ensureGate = (gate: ShortMemoryBlock[], activation: ActivationName) => {
+            while (gate.length < H) gate.push(new ShortMemoryBlock(activation));
+            while (gate.length > H) gate.pop();
+        };
+
+        ensureGate(this._forgetGate, 'sigmoid');
+        ensureGate(this._potentialLongToRem, 'sigmoid');
+        ensureGate(this._potentialLongMemory, 'tanh');
+        ensureGate(this._shortMemoryToRemember, 'sigmoid');
+
+        // readout weights must match H
+        while (this.readoutW.length < H) this.readoutW.push(0);
+        while (this.readoutW.length > H) this.readoutW.pop();
+    }
+
     flattenWeights(): number[] {
-        return [
-            ...flattenBlock(this._forgetGate),
-            ...flattenBlock(this._potentialLongToRem),
-            ...flattenBlock(this._potentialLongMemory),
-            ...flattenBlock(this._shortMemoryToRemember),
-        ];
+        this._ensureConsistentSizes();
+
+        const out: number[] = [];
+
+        for (const b of this._forgetGate) out.push(...flattenBlock(b));
+        for (const b of this._potentialLongToRem) out.push(...flattenBlock(b));
+        for (const b of this._potentialLongMemory) out.push(...flattenBlock(b));
+        for (const b of this._shortMemoryToRemember) out.push(...flattenBlock(b));
+
+        out.push(...this.readoutW, this.readoutB, this._alpha);
+        return out;
     }
 
     private _pickWeightTarget(block: ShortMemoryBlock): WeightTarget {
@@ -168,95 +211,94 @@ export class LSTM {
     }
 
     calculate(input: number[] | number[][], fullSeq = false): number[] {
-        this.longMemory = 0;
-        this.shortMemory = 0;
+        this._ensureConsistentSizes();
+
+        // reset state each forward (как у тебя было)
+        this.longMemory.fill(0);
+        this.shortMemory.fill(0);
 
         const fullSeqMemory: number[] = [];
 
-        // input is number[][]
         if (Array.isArray(input[0])) {
             const seq = input as number[][];
             for (const x_t of seq) {
                 this._predictUnit(x_t);
-                if (fullSeq) fullSeqMemory.push(this.shortMemory);
+                if (fullSeq) fullSeqMemory.push(this._readout()); // можно fullSeq по readout
             }
-
-            return fullSeq ? fullSeqMemory : [this.shortMemory];
+            return fullSeq ? fullSeqMemory : [this._readout()];
         }
 
-        // input is number[]
         const seq = input as number[];
         for (const num of seq) {
             this._predictUnit(num);
-            if (fullSeq) fullSeqMemory.push(this.shortMemory);
+            if (fullSeq) fullSeqMemory.push(this._readout());
         }
+        return fullSeq ? fullSeqMemory : [this._readout()];
+    }
 
-        return fullSeq ? fullSeqMemory : [this.shortMemory];
+    private _readout(): number {
+        // y = sigmoid(dot(W, h) + b)
+        let s = this.readoutB;
+        for (let k = 0; k < this.shortMemory.length; k++) s += this.readoutW[k] * this.shortMemory[k];
+        return sigmoid(s);
     }
 
     private _predictUnit(input: number | number[]) {
-        const forgetOut = this._forgetGate.calculate(input, this.shortMemory);
-        this.longMemory *= forgetOut;
+        const H = this.shortMemory.length;
 
-        const potentialLongToRem = this._potentialLongToRem.calculate(input, this.shortMemory);
-        const potentialLong = this._potentialLongMemory.calculate(input, this.shortMemory);
+        for (let k = 0; k < H; k++) {
+            const hPrev = this.shortMemory[k];
 
-        this.longMemory += potentialLongToRem * potentialLong;
+            const f = this._forgetGate[k].calculate(input, hPrev);
+            this.longMemory[k] *= f;
 
-        const potentialShortToRem = this._shortMemoryToRemember.calculate(input, this.shortMemory);
+            const i = this._potentialLongToRem[k].calculate(input, hPrev);
+            const g = this._potentialLongMemory[k].calculate(input, hPrev);
 
-        const output = this._outputGate.calculate(this.longMemory, potentialShortToRem);
-        this.shortMemory = output;
+            this.longMemory[k] += i * g;
 
-        return output;
+            const o = this._shortMemoryToRemember[k].calculate(input, hPrev);
+
+            // output per-unit
+            this.shortMemory[k] = Math.tanh(this.longMemory[k]) * o;
+        }
     }
 
     model(): LstmOptions {
+        this._ensureConsistentSizes();
+        const H = this.shortMemory.length;
+
         return {
-            forgetGate: {
-                weight1: this._forgetGate.weight1,
-                weight2: this._forgetGate.weight2,
-                bias: this._forgetGate.bias,
-            },
-            potentialLongToRem: {
-                weight1: this._potentialLongToRem.weight1,
-                weight2: this._potentialLongToRem.weight2,
-                bias: this._potentialLongToRem.bias,
-            },
-            potentialLongMemory: {
-                weight1: this._potentialLongMemory.weight1,
-                weight2: this._potentialLongMemory.weight2,
-                bias: this._potentialLongMemory.bias,
-            },
-            shortMemoryToRemember: {
-                weight1: this._shortMemoryToRemember.weight1,
-                weight2: this._shortMemoryToRemember.weight2,
-                bias: this._shortMemoryToRemember.bias,
-            },
+            hiddenSize: H,
+
+            forgetGate: this._forgetGate.map(blockToOptions),
+            potentialLongToRem: this._potentialLongToRem.map(blockToOptions),
+            potentialLongMemory: this._potentialLongMemory.map(blockToOptions),
+            shortMemoryToRemember: this._shortMemoryToRemember.map(blockToOptions),
+
+            readoutW: [...this.readoutW],
+            readoutB: this.readoutB,
+
             alpha: this._alpha,
         };
     }
 
     private _getBlockToMutate(): ShortMemoryBlock {
-        const blockNum = Math.floor(Math.random() * 4 + 1);
+        this._ensureConsistentSizes();
+        const H = this.shortMemory.length;
+        const unit = Math.floor(Math.random() * H);
 
-        let block: ShortMemoryBlock = this._forgetGate;
-        switch (blockNum) {
+        const gateNum = Math.floor(Math.random() * 4);
+        switch (gateNum) {
+            case 0:
+                return this._forgetGate[unit];
             case 1:
-                block = this._forgetGate;
-                break;
+                return this._potentialLongToRem[unit];
             case 2:
-                block = this._potentialLongToRem;
-                break;
-            case 3:
-                block = this._potentialLongMemory;
-                break;
-            case 4:
-                block = this._shortMemoryToRemember;
-                break;
+                return this._potentialLongMemory[unit];
+            default:
+                return this._shortMemoryToRemember[unit];
         }
-
-        return block;
     }
 
     private _mutateWeightRandom(pressureScale: number) {
@@ -330,16 +372,74 @@ export class LSTM {
         this.alpha = this._alpha + delta;
     }
 
+    private _mutateAddUnit() {
+        this._ensureConsistentSizes();
+
+        // add new unit to each gate
+        this._forgetGate.push(new ShortMemoryBlock('sigmoid'));
+        this._potentialLongToRem.push(new ShortMemoryBlock('sigmoid'));
+        this._potentialLongMemory.push(new ShortMemoryBlock('tanh'));
+        this._shortMemoryToRemember.push(new ShortMemoryBlock('sigmoid'));
+
+        // extend memories
+        this.longMemory.push(0);
+        this.shortMemory.push(0);
+
+        // NEW unit initially does nothing -> readout weight 0
+        this.readoutW.push(0);
+
+        // optional: keep readoutB unchanged
+
+        // (опционально) можно “усыпить” веса новому юниту маленькими значениями
+    }
+
+    private _mutateRemoveUnit() {
+        this._ensureConsistentSizes();
+        const H = this.shortMemory.length;
+        if (H <= 1) return;
+
+        // pick unit to remove:
+        // лучше удалять с минимальным |readoutW| чтобы меньше ломать фенотип
+        let idx = 0;
+        let best = Math.abs(this.readoutW[0]);
+        for (let k = 1; k < H; k++) {
+            const v = Math.abs(this.readoutW[k]);
+            if (v < best) {
+                best = v;
+                idx = k;
+            }
+        }
+
+        const removeAt = <T>(arr: T[]) => arr.splice(idx, 1);
+
+        removeAt(this._forgetGate);
+        removeAt(this._potentialLongToRem);
+        removeAt(this._potentialLongMemory);
+        removeAt(this._shortMemoryToRemember);
+
+        removeAt(this.longMemory);
+        removeAt(this.shortMemory);
+        removeAt(this.readoutW);
+    }
+
     mutate() {
         // Apply weights mutation pressure to all weight/bias mutations
         const pressure = this._geneLstm.getMutationPressure();
         const weightsPressure = pressure.weights;
+        const topologyPressure = pressure.topology;
 
-        // Refactored to use simpler Bernoulli sampling with pressure scaling
+        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_ADD_UNIT * topologyPressure) {
+            this._mutateAddUnit();
+        }
+        if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_REMOVE_UNIT * topologyPressure) {
+            this._mutateRemoveUnit();
+        }
+
         if (
             Math.random() <
             this._geneLstm.PROBABILITY_MUTATE_WEIGHT_RANDOM * this._geneLstm.MUTATION_RATE * weightsPressure
         ) {
+            // Refactored to use simpler Bernoulli sampling with pressure scaling
             this._mutateWeightRandom(weightsPressure);
         }
 

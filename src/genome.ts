@@ -1,6 +1,6 @@
 import { LSTM } from './lstm.js';
 import { GeneLSTM } from './gLstm.js';
-import type { GeneOptions, ShortMemory, LstmOptions, SeqInput } from './types/index.js';
+import type { GeneOptions, GateUnitOptions, LstmOptions, SeqInput } from './types/index.js';
 
 export class Genome {
     private _glstm: GeneLSTM;
@@ -72,39 +72,35 @@ export class Genome {
      * to preserve the parent's learned behavior during structural mutations
      */
     private _createSleepingBlock(): LSTM {
-        const config = this._glstm.sleepingBlockConfig;
-        const epsilon = config.epsilon;
+        const cfg = this._glstm.sleepingBlockConfig;
+        const eps = cfg.epsilon;
 
-        // Helper to generate small random weights
-        const randomSmall = () => Math.random() * 2 * epsilon - epsilon;
+        const randSmall = () => Math.random() * 2 * eps - eps;
+
+        const inputN = this._glstm.INPUT_FEATURES || 3;
+
+        const makeUnit = (bias: number): GateUnitOptions => ({
+            weight1: randSmall(),
+            weight2: randSmall(),
+            bias,
+            weightIn: new Array(inputN).fill(0).map(randSmall),
+        });
+
+        const H = 1; // sleeping block starts minimal & non-destructive
 
         const options: LstmOptions = {
-            // Forget gate: high bias -> remember everything (f_t ≈ 0.82)
-            forgetGate: {
-                weight1: randomSmall(),
-                weight2: randomSmall(),
-                bias: config.forgetBias,
-            },
-            // Input gate: low bias -> write very little (i_t ≈ 0.18)
-            potentialLongToRem: {
-                weight1: randomSmall(),
-                weight2: randomSmall(),
-                bias: config.inputBias,
-            },
-            // Candidate: neutral bias (g_t ≈ 0)
-            potentialLongMemory: {
-                weight1: randomSmall(),
-                weight2: randomSmall(),
-                bias: config.candidateBias,
-            },
-            // Output gate: neutral bias (o_t ≈ 0.5)
-            shortMemoryToRemember: {
-                weight1: randomSmall(),
-                weight2: randomSmall(),
-                bias: config.outputBias,
-            },
-            // Skip connection: start very small (block outputs ≈ input initially)
-            alpha: config.initialAlpha,
+            hiddenSize: H,
+
+            forgetGate: new Array(H).fill(0).map(() => makeUnit(cfg.forgetBias)),
+            potentialLongToRem: new Array(H).fill(0).map(() => makeUnit(cfg.inputBias)),
+            potentialLongMemory: new Array(H).fill(0).map(() => makeUnit(cfg.candidateBias)),
+            shortMemoryToRemember: new Array(H).fill(0).map(() => makeUnit(cfg.outputBias)),
+
+            // new unit should initially have ~0 influence on final output
+            readoutW: new Array(H).fill(0),
+            readoutB: 0,
+
+            alpha: cfg.initialAlpha,
         };
 
         return new LSTM(this._glstm, options);
@@ -168,6 +164,30 @@ export class Genome {
         return inputPassed as number[];
     }
 
+    static crossGateUnit(a: GateUnitOptions, b: GateUnitOptions): GateUnitOptions {
+        const out: GateUnitOptions = {
+            weight1: Math.random() < 0.5 ? a.weight1 : b.weight1,
+            weight2: Math.random() < 0.5 ? a.weight2 : b.weight2,
+            bias: Math.random() < 0.5 ? a.bias : b.bias,
+        };
+
+        const wa = a.weightIn;
+        const wb = b.weightIn;
+
+        if (wa && wb) {
+            const n = Math.min(wa.length, wb.length);
+            const w: number[] = new Array(n);
+            for (let i = 0; i < n; i++) w[i] = Math.random() < 0.5 ? wa[i] : wb[i];
+            out.weightIn = w;
+        } else if (wa) {
+            out.weightIn = [...wa];
+        } else if (wb) {
+            out.weightIn = [...wb];
+        }
+
+        return out;
+    }
+
     static crossOver(g1: Genome, g2: Genome): Genome {
         const lstms1 = g1.lstmArray;
         const lstms2 = g2.lstmArray;
@@ -180,41 +200,59 @@ export class Genome {
             const block2 = lstms2[i];
 
             if (block1 && block2) {
-                // Both parents have this block: cross parameters
-                const b1Model = block1.model();
-                const b2Model = block2.model();
+                const a = block1.model();
+                const b = block2.model();
+
+                const H1 = a.hiddenSize ?? 1;
+                const H2 = b.hiddenSize ?? 1;
+                const H = Math.max(H1, H2);
+                const minH = Math.min(H1, H2);
+
+                const crossGateArray = (ga: GateUnitOptions[], gb: GateUnitOptions[]) => {
+                    const out: GateUnitOptions[] = [];
+                    for (let k = 0; k < H; k++) {
+                        if (k < minH) {
+                            out.push(Genome.crossGateUnit(ga[k], gb[k]));
+                        } else {
+                            // excess unit: inherit from whichever parent has it
+                            const hasA = k < ga.length;
+                            const hasB = k < gb.length;
+                            if (hasA && hasB) out.push(Math.random() < 0.5 ? ga[k] : gb[k]);
+                            else if (hasA) out.push(ga[k]);
+                            else out.push(gb[k]);
+                        }
+                    }
+                    return out;
+                };
+
+                const readoutW: number[] = new Array(H);
+                for (let k = 0; k < H; k++) {
+                    const wa = a.readoutW?.[k];
+                    const wb = b.readoutW?.[k];
+                    readoutW[k] =
+                        wa !== undefined && wb !== undefined ? (Math.random() < 0.5 ? wa : wb) : (wa ?? wb ?? 0);
+                }
+
                 geneOptions.push({
-                    forgetGate: Genome.crossShortMemory(b1Model.forgetGate, b2Model.forgetGate),
-                    potentialLongToRem: Genome.crossShortMemory(b1Model.potentialLongToRem, b2Model.potentialLongToRem),
-                    potentialLongMemory: Genome.crossShortMemory(
-                        b1Model.potentialLongMemory,
-                        b2Model.potentialLongMemory,
-                    ),
-                    shortMemoryToRemember: Genome.crossShortMemory(
-                        b1Model.shortMemoryToRemember,
-                        b2Model.shortMemoryToRemember,
-                    ),
-                    alpha: Math.random() < 0.5 ? b1Model.alpha : b2Model.alpha,
+                    hiddenSize: H,
+
+                    forgetGate: crossGateArray(a.forgetGate, b.forgetGate),
+                    potentialLongToRem: crossGateArray(a.potentialLongToRem, b.potentialLongToRem),
+                    potentialLongMemory: crossGateArray(a.potentialLongMemory, b.potentialLongMemory),
+                    shortMemoryToRemember: crossGateArray(a.shortMemoryToRemember, b.shortMemoryToRemember),
+
+                    readoutW,
+                    readoutB: Math.random() < 0.5 ? (a.readoutB ?? 0) : (b.readoutB ?? 0),
+
+                    alpha: Math.random() < 0.5 ? a.alpha : b.alpha,
                 });
             } else {
-                // Only one parent has this block: inherit with higher probability (75%)
-                const useBlock1 = block1 && (!block2 || Math.random() < 0.75);
-                if (useBlock1 && block1) {
-                    geneOptions.push(block1.model());
-                } else if (block2) {
-                    geneOptions.push(block2.model());
-                }
+                // Only one parent has this block
+                const use1 = block1 && (!block2 || Math.random() < 0.75);
+                geneOptions.push(use1 ? block1!.model() : block2!.model());
             }
         }
 
         return new Genome(g1.glstm, geneOptions);
-    }
-
-    static crossShortMemory(a: ShortMemory, b: ShortMemory): ShortMemory {
-        return {
-            weight1: Math.random() < 0.5 ? a.weight1 : b.weight1,
-            weight2: Math.random() < 0.5 ? a.weight2 : b.weight2,
-            bias: Math.random() < 0.5 ? a.bias : b.bias,
-        };
     }
 }

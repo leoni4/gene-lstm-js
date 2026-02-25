@@ -31,19 +31,19 @@ export const MUTATION_PRESSURE_CONST: Record<EMutationPressure, Record<MutationP
     },
 };
 
-export interface ShortMemory {
-    weight1: number;
-    weight2: number;
-    bias: number;
-}
+export type LstmOptions = {
+    hiddenSize: number;
 
-export interface LstmOptions {
-    forgetGate: ShortMemory;
-    potentialLongToRem: ShortMemory;
-    potentialLongMemory: ShortMemory;
-    shortMemoryToRemember: ShortMemory;
-    alpha?: number; // Skip connection strength
-}
+    forgetGate: GateUnitOptions[];
+    potentialLongToRem: GateUnitOptions[];
+    potentialLongMemory: GateUnitOptions[];
+    shortMemoryToRemember: GateUnitOptions[];
+
+    readoutW: number[];
+    readoutB: number;
+
+    alpha: number;
+};
 
 export type GeneOptions = LstmOptions[];
 
@@ -57,3 +57,10 @@ export interface SleepingBlockConfig {
 }
 
 export type SeqInput = number[] | number[][];
+
+export type GateUnitOptions = {
+    weight1: number; // recurrent
+    weight2: number; // scalar input fallback (можно хранить)
+    bias: number;
+    weightIn?: number[]; // vector input weights (len = INPUT_FEATURES)
+};

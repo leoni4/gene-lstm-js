@@ -37,6 +37,8 @@ interface GeneLSTMOptions {
     PROBABILITY_MUTATE_LSTM_BLOCK?: number;
     PROBABILITY_ADD_BLOCK_APPEND?: number;
     PROBABILITY_REMOVE_BLOCK?: number;
+    PROBABILITY_MUTATE_ADD_UNIT?: number;
+    PROBABILITY_MUTATE_REMOVE_UNIT?: number;
     sleepingBlockConfig?: Partial<SleepingBlockConfig>;
     loadData?: GeneOptions;
     // Dynamic CP adjustment parameters
@@ -79,6 +81,8 @@ export class GeneLSTM {
     private _PROBABILITY_MUTATE_LSTM_BLOCK: number;
     private _PROBABILITY_ADD_BLOCK_APPEND: number;
     private _PROBABILITY_REMOVE_BLOCK: number;
+    private _PROBABILITY_MUTATE_ADD_UNIT: number;
+    private _PROBABILITY_MUTATE_REMOVE_UNIT: number;
 
     private _sleepingBlockConfig: SleepingBlockConfig;
 
@@ -142,9 +146,11 @@ export class GeneLSTM {
         this._PROBABILITY_MUTATE_BIAS_RANDOM = options?.PROBABILITY_MUTATE_BIAS_RANDOM ?? 0.1;
         this._PROBABILITY_MUTATE_WEIGHT_SHIFT = options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.8;
         this._PROBABILITY_MUTATE_WEIGHT_RANDOM = options?.PROBABILITY_MUTATE_WEIGHT_RANDOM ?? 0.1;
-        this._PROBABILITY_MUTATE_LSTM_BLOCK = options?.PROBABILITY_MUTATE_LSTM_BLOCK ?? 0.05;
+        this._PROBABILITY_MUTATE_LSTM_BLOCK = options?.PROBABILITY_MUTATE_LSTM_BLOCK ?? 0.01;
         this._PROBABILITY_ADD_BLOCK_APPEND = options?.PROBABILITY_ADD_BLOCK_APPEND ?? 0.92;
         this._PROBABILITY_REMOVE_BLOCK = options?.PROBABILITY_REMOVE_BLOCK ?? 0.1;
+        this._PROBABILITY_MUTATE_ADD_UNIT = options?.PROBABILITY_MUTATE_ADD_UNIT ?? 0.05;
+        this._PROBABILITY_MUTATE_REMOVE_UNIT = options?.PROBABILITY_MUTATE_REMOVE_UNIT ?? 0.02;
 
         // Configure sleeping block initialization for non-destructive mutations
         this._sleepingBlockConfig = {
@@ -232,6 +238,12 @@ export class GeneLSTM {
     }
     get PROBABILITY_REMOVE_BLOCK() {
         return this._PROBABILITY_REMOVE_BLOCK;
+    }
+    get PROBABILITY_MUTATE_ADD_UNIT() {
+        return this._PROBABILITY_MUTATE_ADD_UNIT;
+    }
+    get PROBABILITY_MUTATE_REMOVE_UNIT() {
+        return this._PROBABILITY_MUTATE_REMOVE_UNIT;
     }
     get sleepingBlockConfig() {
         return this._sleepingBlockConfig;

@@ -140,10 +140,11 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
 
 const usetraining = async () => {
     const glstm = new GeneLSTM(100, {
-        // INPUT_FEATURES: 3,
+        INPUT_FEATURES: 3,
     });
     glstm.printSpecies();
-    const data = trainingData; // testHierarchicalSegmentXorAdd.build();
+    const data = testHierarchicalSegmentXorAdd.build();
+    // const data = trainingData;
     console.log('---- START TRAIN -----');
 
     await train(glstm, data, 1000);

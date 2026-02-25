@@ -129,9 +129,9 @@ export class LSTM {
             this._potentialLongMemory = new Array(H).fill(0).map(() => new ShortMemoryBlock('tanh'));
             this._shortMemoryToRemember = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
 
-            const eps = 0.1;
+            const eps = 0.2;
             this.readoutW = new Array(H).fill(0).map(() => (Math.random() * 2 - 1) * eps);
-            this.readoutB = 0;
+            this.readoutB = (Math.random() * 2 - 1) * eps;
         }
 
         this.longMemory = new Array(H).fill(0);

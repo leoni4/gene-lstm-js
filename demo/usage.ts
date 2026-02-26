@@ -6,6 +6,7 @@ import {
     testLstmParity01,
     testLstmTrend01,
     testLstmWaveMix01,
+    testHierarchicalSegmentMajorityAdd,
     testHierarchicalSegmentXorAdd,
 } from './problems.js';
 
@@ -15,6 +16,7 @@ console.log(
     !testLstmParity01,
     !testLstmTrend01,
     !testLstmWaveMix01,
+    !testHierarchicalSegmentMajorityAdd,
     !testHierarchicalSegmentXorAdd,
 );
 
@@ -86,6 +88,7 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
                 let localErrorSum = 0;
                 let predSum = 0;
                 let classSolved = 0;
+                let blunder = 0;
 
                 for (let t = 0; t < data.inputs.length; t++) {
                     const input = data.inputs[t];
@@ -97,6 +100,8 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
                     predSum += out;
                     localErrorSum += Math.abs(out - target);
 
+                    if ((target === 0 && out > 0.9) || (target === 1 && out < 0.1)) blunder++;
+
                     if ((target === 1 && out > 0.5) || (target === 0 && out < 0.5)) classSolved++;
 
                     if (iter % 1000 === 0) await sleep(0);
@@ -106,7 +111,8 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
                 const meanPred = predSum / data.inputs.length;
                 const penalty = LAMBDA_MEAN * Math.abs(meanPred - 0.5);
                 const penaltyClass = LAMBDA_MEAN * Math.abs(classSolved / data.inputs.length);
-                const finalError = Math.min(1, localError + penalty + penaltyClass);
+                const penaltyBlunder = LAMBDA_MEAN * Math.abs(blunder / data.inputs.length);
+                const finalError = Math.min(1, localError + penalty + penaltyClass + penaltyBlunder);
 
                 client.error = finalError;
                 client.score = 1 - finalError;
@@ -139,11 +145,12 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
 };
 
 const usetraining = async () => {
-    const glstm = new GeneLSTM(100, {
+    const glstm = new GeneLSTM(300, {
         INPUT_FEATURES: 3,
+        verbose: 2,
     });
     glstm.printSpecies();
-    const data = testHierarchicalSegmentXorAdd.build();
+    const data = testHierarchicalSegmentMajorityAdd.build();
     // const data = trainingData;
     console.log('---- START TRAIN -----');
 

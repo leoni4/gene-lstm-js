@@ -27,7 +27,7 @@ export const MUTATION_PRESSURE_CONST: Record<EMutationPressure, Record<MutationP
     },
     PANIC: {
         topology: 2,
-        weights: 2,
+        weights: 4,
     },
 };
 

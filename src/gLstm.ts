@@ -6,6 +6,12 @@ import { RandomSelector } from './randomSelector.js';
 import type { GeneOptions, SleepingBlockConfig } from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST } from './types/index.js';
 
+const HISTORY_WINDOW = 50;
+const SMALL_GAIN_THRESHOLD = 0.01;
+const COMPLEXITY_GROWTH_ABS = 2.0;
+const COMPLEXITY_GROWTH_RATIO = 0.25;
+const COMPLEXITY_RATIO_DENOM_FLOOR = 8;
+
 type ResolvedGeneLSTMOptions = Required<Omit<GeneLSTMOptions, 'sleepingBlockConfig' | 'loadData'>> & {
     sleepingBlockConfig: SleepingBlockConfig;
     loadData?: GeneOptions;
@@ -25,8 +31,8 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
 
         INPUT_FEATURES: options?.INPUT_FEATURES ?? 1,
 
-        SURVIVORS: options?.SURVIVORS ?? 0.8,
-        MUTATION_RATE: options?.MUTATION_RATE ?? 1,
+        SURVIVORS: options?.SURVIVORS ?? 0.6,
+        MUTATION_RATE: options?.MUTATION_RATE ?? 0.3,
 
         BIAS_SHIFT_STRENGTH: options?.BIAS_SHIFT_STRENGTH ?? 0.2,
         BIAS_RANDOM_STRENGTH: options?.BIAS_RANDOM_STRENGTH ?? 1.0,
@@ -37,8 +43,8 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         PROBABILITY_MUTATE_ALPHA_SHIFT: options?.PROBABILITY_MUTATE_ALPHA_SHIFT ?? 0.05,
         PROBABILITY_MUTATE_BIAS_SHIFT: options?.PROBABILITY_MUTATE_BIAS_SHIFT ?? 0.8,
         PROBABILITY_MUTATE_BIAS_RANDOM: options?.PROBABILITY_MUTATE_BIAS_RANDOM ?? 0.1,
-        PROBABILITY_MUTATE_WEIGHT_SHIFT: options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.8,
-        PROBABILITY_MUTATE_WEIGHT_RANDOM: options?.PROBABILITY_MUTATE_WEIGHT_RANDOM ?? 0.1,
+        PROBABILITY_MUTATE_WEIGHT_SHIFT: options?.PROBABILITY_MUTATE_WEIGHT_SHIFT ?? 0.95,
+        PROBABILITY_MUTATE_WEIGHT_RANDOM: options?.PROBABILITY_MUTATE_WEIGHT_RANDOM ?? 0.05,
 
         PROBABILITY_MUTATE_LSTM_BLOCK: options?.PROBABILITY_MUTATE_LSTM_BLOCK ?? 0.01,
         PROBABILITY_ADD_BLOCK_APPEND: options?.PROBABILITY_ADD_BLOCK_APPEND ?? 0.92,
@@ -47,8 +53,8 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         PROBABILITY_MUTATE_ADD_UNIT: options?.PROBABILITY_MUTATE_ADD_UNIT ?? 0.02,
         PROBABILITY_MUTATE_REMOVE_UNIT: options?.PROBABILITY_MUTATE_REMOVE_UNIT ?? 0.02,
 
-        PROBABILITY_MUTATE_READOUT_W: options?.PROBABILITY_MUTATE_READOUT_W ?? 0.8,
-        PROBABILITY_MUTATE_READOUT_B: options?.PROBABILITY_MUTATE_READOUT_B ?? 0.2,
+        PROBABILITY_MUTATE_READOUT_W: options?.PROBABILITY_MUTATE_READOUT_W ?? 1,
+        PROBABILITY_MUTATE_READOUT_B: options?.PROBABILITY_MUTATE_READOUT_B ?? 0.6,
 
         sleepingBlockConfig: {
             epsilon: 0.002,
@@ -184,6 +190,8 @@ export class GeneLSTM {
     };
 
     // Champion tracking parameters
+    private _bestHistory: number[] = [];
+    private _complexityHistory: number[] = [];
     private _champion: Client | null = null;
     private _championStagnationCount = 0;
     private _championStagnationThreshold = 10;
@@ -458,6 +466,16 @@ export class GeneLSTM {
         }
     }
 
+    private _calcClientComplexity(client: Client): { blocks: number; units: number; complexity: number } {
+        const blocks = client.genome.lstmArray.length;
+        const units = client.genome.lstmArray.reduce((acc, lstm) => acc + (lstm.readoutW?.length ?? 1), 0);
+
+        // можно другой коэффициент, но это нормальный старт
+        const complexity = blocks + 0.25 * units;
+
+        return { blocks, units, complexity };
+    }
+
     /**
      * Automatically adjusts mutation pressure based on fitness stagnation.
      * State machine:
@@ -471,6 +489,43 @@ export class GeneLSTM {
         if (!this._enablePressureEscalation) {
             return;
         }
+        const canCompact =
+            this._bestHistory.length >= 2 &&
+            this._complexityHistory.length >= 2 &&
+            this._championStagnationCount > HISTORY_WINDOW;
+
+        if (canCompact) {
+            const scoreHist = this._bestHistory;
+            const compHist = this._complexityHistory;
+
+            const s0 = scoreHist[0];
+            const sBest = Math.max(...scoreHist);
+            const gain = sBest - s0;
+
+            const c0 = compHist[0];
+            const c1 = compHist[compHist.length - 1];
+            const growthAbs = c1 - c0;
+            const denom = Math.max(c0, COMPLEXITY_RATIO_DENOM_FLOOR);
+            const growthRatio = growthAbs / denom;
+
+            const growingMeaningfully = growthAbs >= COMPLEXITY_GROWTH_ABS || growthRatio >= COMPLEXITY_GROWTH_RATIO;
+
+            const tinyProgress = gain <= SMALL_GAIN_THRESHOLD;
+
+            if (growingMeaningfully && tinyProgress) {
+                if (this._mutationPressure !== EMutationPressure.COMPACT) {
+                    const old = this._mutationPressure;
+                    this._mutationPressure = EMutationPressure.COMPACT;
+
+                    if (this._verbose === 2) {
+                        console.log(
+                            `[Gen ${this._evolveCounts}] Mutation Pressure: ${old} → COMPACT (gain=${gain.toFixed(4)}, complexity ${c0.toFixed(2)}→${c1.toFixed(2)})`,
+                        );
+                    }
+                }
+            }
+        }
+
         if (this._panicCooldownCounter > 0) {
             this._panicCooldownCounter--;
         }
@@ -756,11 +811,17 @@ export class GeneLSTM {
         // Current best client (already sorted by score in _normalizeScore)
         const currentBest = this._clients[0];
 
+        const { complexity: currentBestComplexity } = this._calcClientComplexity(currentBest);
+
         // Initialize champion if not exists
         if (this._champion === null) {
             // Create a deep copy of the best client
             this._champion = this._copyClient(currentBest);
             this._championStagnationCount = 0;
+
+            this._bestHistory = [currentBest.score];
+            this._complexityHistory = [currentBestComplexity];
+
             if (this._verbose === 2)
                 console.log(
                     `[Gen ${this._evolveCounts}] Champion initialized with score ${currentBest.score.toFixed(4)}`,
@@ -809,6 +870,12 @@ export class GeneLSTM {
                 this._championStagnationCount = 0;
             }
         }
+
+        this._bestHistory.push(currentBest.score);
+        this._complexityHistory.push(currentBestComplexity);
+
+        if (this._bestHistory.length > HISTORY_WINDOW) this._bestHistory.shift();
+        if (this._complexityHistory.length > HISTORY_WINDOW) this._complexityHistory.shift();
     }
 
     /**

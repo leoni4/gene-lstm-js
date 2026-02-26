@@ -149,6 +149,93 @@ export const testLstmWaveMix01 = {
     },
 } as const;
 
+export const testHierarchicalSegmentMajorityAdd = {
+    name: 'hierarchical_segment_majority_add',
+    inputs: [] as number[][][],
+    outputs: [] as number[],
+    build({
+        samples = 512,
+        seqLen = 20,
+        segLen = 5,
+        threshold = 1,
+        noise = 0,
+        valueMin = 0.0,
+        valueMax = 1.0,
+        seed = 0,
+
+        // majority threshold: >50% by default
+        majorityRatio = 0.5,
+    } = {}) {
+        const inputs: number[][][] = [];
+        const outputs: number[] = [];
+
+        if (seqLen % segLen !== 0) {
+            throw new Error(`seqLen (${seqLen}) must be divisible by segLen (${segLen})`);
+        }
+
+        const segments = seqLen / segLen;
+
+        let s = seed >>> 0;
+        const rand = () => {
+            s = (1664525 * s + 1013904223) >>> 0;
+            return s / 0xffffffff;
+        };
+
+        const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+        // strict majority: if ties possible, you can decide >= vs >
+        const majorityCutoff = Math.floor(segments * majorityRatio) + 1;
+
+        for (let sample = 0; sample < samples; sample++) {
+            const sampleVec: number[][] = [];
+
+            let onesCount = 0;
+
+            for (let seg = 0; seg < segments; seg++) {
+                let p1 = Math.floor(rand() * segLen);
+                let p2 = Math.floor(rand() * segLen);
+                while (p2 === p1) p2 = Math.floor(rand() * segLen);
+
+                const values: number[] = [];
+                for (let i = 0; i < segLen; i++) {
+                    let v = valueMin + (valueMax - valueMin) * rand();
+                    if (noise > 0) v += (rand() * 2 - 1) * noise;
+                    v = clamp01(v);
+                    values.push(v);
+                }
+
+                const localSum = values[p1] + values[p2];
+                const localBit = localSum > threshold ? 1 : 0;
+
+                onesCount += localBit;
+
+                for (let i = 0; i < segLen; i++) {
+                    const value = values[i];
+                    const marker = i === p1 || i === p2 ? 1 : 0;
+                    const segStart = i === 0 ? 1 : 0;
+
+                    const value11 = value * 2 - 1; // [0..1] -> [-1..1]
+                    const marker11 = marker ? 1 : -1; // {0,1} -> {-1,1}
+                    const segStart11 = segStart ? 1 : -1; // {0,1} -> {-1,1}
+
+                    sampleVec.push([value11, marker11, segStart11]);
+                }
+            }
+
+            const finalMajority = onesCount >= majorityCutoff ? 1 : 0;
+
+            inputs.push(sampleVec);
+            outputs.push(finalMajority);
+        }
+
+        const up = outputs.filter(a => a === 1).length;
+        const down = outputs.length - up;
+        console.log(`1=${up}, 0=${down}`);
+
+        return { ...this, inputs, outputs };
+    },
+} as const;
+
 export const testHierarchicalSegmentXorAdd = {
     name: 'hierarchical_segment_xor_add',
     inputs: [] as number[][],

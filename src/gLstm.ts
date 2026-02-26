@@ -169,7 +169,7 @@ export class GeneLSTM {
     private _enablePressureEscalation: boolean;
     private _stagnationThreshold: number;
     private _stagnationCounter = 0;
-    private _bestFitnessEver = -Infinity;
+    private _bestFitnessEver = 0;
     // --- Pressure tuning knobs ---
     private _pressureImprovementAbs = 1e-6; // minimal absolute improvement
     private _pressureImprovementRel = 1e-3; // relative improvement factor (0.1%)
@@ -558,7 +558,6 @@ export class GeneLSTM {
         );
 
         const hasImproved = currentBestFitness > this._bestFitnessEver + improvementThreshold;
-
         if (hasImproved) {
             // Fitness improved - reset stagnation and gradually reduce pressure
             this._bestFitnessEver = currentBestFitness;

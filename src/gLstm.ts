@@ -32,7 +32,7 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         INPUT_FEATURES: options?.INPUT_FEATURES ?? 1,
 
         SURVIVORS: options?.SURVIVORS ?? 0.6,
-        MUTATION_RATE: options?.MUTATION_RATE ?? 0.3,
+        MUTATION_RATE: options?.MUTATION_RATE ?? 1,
 
         BIAS_SHIFT_STRENGTH: options?.BIAS_SHIFT_STRENGTH ?? 0.2,
         BIAS_RANDOM_STRENGTH: options?.BIAS_RANDOM_STRENGTH ?? 1.0,

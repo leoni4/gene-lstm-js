@@ -42,6 +42,7 @@ export default [
             '.DS_Store',
             '*.swp',
             'index.js',
+            'tests/esm-smoke-test.mjs',
         ],
     },
     // Base ESLint recommended rules

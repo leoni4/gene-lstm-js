@@ -20,6 +20,7 @@ type ResolvedGeneLSTMOptions = Required<Omit<GeneLSTMOptions, 'sleepingBlockConf
 function getDefaultTargetSpecies(clients: number): number {
     if (clients <= 100) return 5;
     if (clients <= 500) return 8;
+
     return 10;
 }
 
@@ -386,6 +387,7 @@ export class GeneLSTM {
         this._clients.sort((a, b) => {
             return a.score > b.score ? -1 : 1;
         });
+
         return (this._champion || this._clients[0]).genome.lstmArray.map(l => l.model());
     }
 

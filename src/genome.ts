@@ -222,6 +222,7 @@ export class Genome {
                             else out.push(gb[k]);
                         }
                     }
+
                     return out;
                 };
 

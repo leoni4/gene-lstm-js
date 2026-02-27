@@ -104,8 +104,10 @@ export class LSTM {
 
         const H = options?.hiddenSize ?? 1;
 
-        const makeBlock = (act: ActivationName, u?: any) =>
-            new ShortMemoryBlock(act, u?.weight1, u?.weight2, u?.bias, u?.weightIn);
+        const makeBlock = (
+            act: ActivationName,
+            u?: { weight1?: number; weight2?: number; bias?: number; weightIn?: number[] },
+        ) => new ShortMemoryBlock(act, u?.weight1, u?.weight2, u?.bias, u?.weightIn);
 
         if (options) {
             // gates restored from arrays
@@ -187,6 +189,7 @@ export class LSTM {
         for (const b of this._shortMemoryToRemember) out.push(...flattenBlock(b));
 
         out.push(...this.readoutW, this.readoutB, this._alpha);
+
         return out;
     }
 
@@ -236,6 +239,7 @@ export class LSTM {
             const yPrev = typeof last[0] === 'number' ? last[0] : 0;
 
             const a = this._alpha;
+
             return [(1 - a) * yPrev + a * y];
         }
 
@@ -252,6 +256,7 @@ export class LSTM {
         // alpha mix for HEAD only:
         const lastIn = seq.length ? seq[seq.length - 1] : 0;
         const a = this._alpha;
+
         return [(1 - a) * lastIn + a * y];
     }
 
@@ -259,6 +264,7 @@ export class LSTM {
         // y = sigmoid(dot(W, h) + b)
         let s = this.readoutB;
         for (let k = 0; k < this.shortMemory.length; k++) s += this.readoutW[k] * this.shortMemory[k];
+
         return sigmoid(s);
     }
 

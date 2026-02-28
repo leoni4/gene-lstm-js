@@ -130,7 +130,7 @@ const usetraining = async () => {
     glstm.printSpecies();
     // const data = testHierarchicalSegmentMajorityAdd.build();
     // const data = trainingData;
-    const data = lastBit;
+    const data = lastBit.build();
     console.log('---- START TRAIN -----');
 
     await train(glstm, data, 1000);
@@ -149,8 +149,10 @@ const usetraining = async () => {
 const useFit = () => {
     const glstm = new GeneLSTM(300);
 
-    const solved = glstm.fit(lastBit.inputs, lastBit.outputs, {
+    const data = lastBit.build();
+    const solved = glstm.fit(data.inputs, data.outputs, {
         verbose: 2,
+        loss: 'bce',
     });
 
     console.log('solved in:', solved.epochs);

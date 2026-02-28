@@ -433,7 +433,6 @@ describe('LSTM', () => {
             });
 
             const lstm = new LSTM(glstmBiasMutation);
-            const biasBefore = lstm.readoutB;
 
             lstm.mutate();
 

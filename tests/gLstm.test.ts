@@ -293,7 +293,7 @@ describe('GeneLSTM', () => {
             const glstm = new GeneLSTM(10);
 
             // Set scores
-            glstm.clients.forEach((c, i) => {
+            glstm.clients.forEach(c => {
                 c.score = Math.random();
             });
 
@@ -389,8 +389,6 @@ describe('GeneLSTM', () => {
             const glstm = new GeneLSTM(50, {
                 targetSpecies: 5,
             });
-
-            const cpBefore = glstm.CP;
 
             glstm.clients.forEach(c => {
                 c.score = Math.random();

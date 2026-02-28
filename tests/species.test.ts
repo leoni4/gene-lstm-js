@@ -139,7 +139,6 @@ describe('Species', () => {
 
         it('should reset score to 0', () => {
             species.evaluateScore();
-            const scoreBeforeReset = species.score;
 
             species.reset();
 

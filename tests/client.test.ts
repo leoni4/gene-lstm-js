@@ -32,6 +32,7 @@ describe('Client', () => {
 
             // Mutation may or may not change the model depending on random probabilities
             expect(client.genome).toBeDefined();
+            expect(JSON.stringify(originalModel) === JSON.stringify(mutatedModel)).toBeFalsy();
         });
 
         it('should not mutate when bestScore is true and force is false', () => {

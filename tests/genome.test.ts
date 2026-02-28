@@ -148,7 +148,6 @@ describe('Genome', () => {
     describe('mutate', () => {
         it('should mutate genome without crashing', () => {
             const genome = new Genome(geneLstm);
-            const initialDepth = genome.lstmArray.length;
 
             genome.mutate();
 

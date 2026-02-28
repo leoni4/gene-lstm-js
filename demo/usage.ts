@@ -30,17 +30,6 @@ const trainingData = {
     outputs: [0, 1],
 };
 
-// const testData = {
-//     inputs: [
-//         [0.1, 0.5, 0.25, 1], // ожидание: ближе к 0
-//         [0.9, 0.5, 0.25, 1], // ожидание: ближе к 1
-//         [0.5, 0.5, 0.25, 1], // пограничное — интересно как поведёт себя сеть
-//         [0, 0.4, 0.3, 1], // похож на 0, но шум
-//         [1, 0.6, 0.2, 1], // похож на 1, но шум
-//     ],
-//     outputs: [0, 1, 0.5, 0, 1], // предположения, не обязательны
-// };
-
 const usePreTrained = () => {
     const glstm = new GeneLSTM(1, {
         loadData: PRE_TRAINED_DATA,
@@ -86,7 +75,7 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
                     const target = data.outputs[t];
 
                     iter++;
-                    const out = client.calculate(input)[0]; // убери "as any" если типы уже обновил
+                    const out = client.calculate(input)[0];
 
                     predSum += out;
                     localErrorSum += Math.abs(out - target);
@@ -108,7 +97,6 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
                 client.error = finalError;
                 client.score = 1 - finalError;
 
-                // ВАЖНО: выбираем best по finalError, иначе penalty не работает
                 if (finalError < bestError) {
                     bestError = finalError;
                     bestClient = client;

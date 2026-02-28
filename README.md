@@ -2,6 +2,12 @@
 
 A TypeScript implementation of evolutionary LSTM neural networks using genetic algorithms. This library combines Long Short-Term Memory (LSTM) networks with neuroevolution techniques to create adaptive, self-optimizing neural networks for sequence learning tasks.
 
+## 🎮 Live Demo
+
+Try the interactive demo: **[https://leoni4.github.io/gene-lstm-js/](https://leoni4.github.io/gene-lstm-js/)**
+
+The demo showcases Gene LSTM solving various problems including LastBit, parity functions, and classification tasks with real-time visualization of the neural network evolution.
+
 ## Features
 
 - **Neuroevolution**: Evolves LSTM architectures and weights through genetic algorithms

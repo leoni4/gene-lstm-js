@@ -44,7 +44,6 @@ const usePreTrained = () => {
     console.log('out2', out2, `// should be ${trainingData.outputs[1]}`);
     console.log('----------------------');
 };
-usePreTrained();
 
 const sleep = (num = 0) => new Promise(resolve => setTimeout(resolve, num));
 
@@ -147,4 +146,13 @@ const usetraining = async () => {
     console.log('---- ----------- -----');
 };
 
-usetraining();
+const useFit = () => {
+    const glstm = new GeneLSTM(300);
+    glstm.fit(lastBit.inputs, lastBit.outputs, {
+        verbose: 2,
+    });
+};
+
+// usePreTrained();
+// usetraining();
+useFit();

@@ -443,7 +443,7 @@ export class GeneLSTM {
         const logInterval = options.logInterval ?? 100;
 
         const loss = options.loss ?? 'mae';
-        const antiConst = options.antiConstantPenalty ?? true;
+        const antiConst = options.antiConstantPenalty ?? false;
         const antiLambda = options.antiConstantLambda ?? 0.05;
         const shuffleEachEpoch = options.shuffleEachEpoch ?? true;
 

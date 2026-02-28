@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeneLSTM Demo - Evolutionary LSTM Training</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>GeneLSTM Demo</h1>
+            <p class="subtitle">Evolutionary LSTM Training with Genetic Algorithms</p>
+        </header>
+
+        <section class="problem-selector card">
+            <h2>Problem Selector</h2>
+            <div class="control-group">
+                <label for="problemSelect">Choose a problem:</label>
+                <select id="problemSelect" class="problem-select">
+                    <option value="lastBit">Last Bit - Remember the last element of a binary sequence</option>
+                    <option value="sineNext">Sine Wave Prediction - Predict next value in sine wave</option>
+                    <option value="adding">Adding Task - Add two marked values in a sequence</option>
+                    <option value="parity">Parity Check - Calculate XOR of binary sequence</option>
+                    <option value="trend">Trend Detection - Determine if sequence is trending up or down</option>
+                    <option value="waveMix">Wave Mix Prediction - Predict next value in complex wave</option>
+                    <option value="hierarchicalMajority">Hierarchical Majority - Segment-wise majority voting</option>
+                    <option value="hierarchicalXor">Hierarchical XOR - Segment-wise XOR parity</option>
+                </select>
+            </div>
+            <div id="problemDescription" class="problem-description">
+                <strong>Last Bit:</strong> Learn to output the last bit of a 4-bit binary sequence. Simple memory task
+                with 16 samples. Perfect for quick testing.
+            </div>
+        </section>
+
+        <div class="main-layout">
+            <!-- Left Panel: Controls + Metrics + Logs -->
+            <div class="left-panel">
+                <!-- Controls -->
+                <section class="card controls-section">
+                    <h2>Training Controls</h2>
+                    <div class="control-group">
+                        <button id="trainBtn" class="btn btn-primary">Start Training</button>
+                        <button id="stopBtn" class="btn btn-danger" disabled>Stop</button>
+                    </div>
+                    <div class="control-group">
+                        <label for="maxEpochs">Max Epochs:</label>
+                        <input type="number" id="maxEpochs" value="500" min="1" max="10000">
+                    </div>
+                    <div class="control-group">
+                        <label for="errorThreshold">Error Threshold:</label>
+                        <input type="number" id="errorThreshold" value="0.05" step="0.01" min="0" max="1">
+                    </div>
+                </section>
+
+                <!-- Metrics -->
+                <section class="card metrics-section">
+                    <h2>Live Metrics</h2>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <span class="metric-label">Epoch:</span>
+                            <span id="metricEpoch" class="metric-value">0</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Best Error:</span>
+                            <span id="metricError" class="metric-value">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Best Score:</span>
+                            <span id="metricScore" class="metric-value">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Species:</span>
+                            <span id="metricSpecies" class="metric-value">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Mutation Pressure:</span>
+                            <span id="metricPressure" class="metric-value">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">CP:</span>
+                            <span id="metricCP" class="metric-value">-</span>
+                        </div>
+                    </div>
+
+                    <h3>Complexity</h3>
+                    <div class="metrics-grid">
+                        <div class="metric">
+                            <span class="metric-label">Blocks:</span>
+                            <span id="metricBlocks" class="metric-value">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Total Units:</span>
+                            <span id="metricUnits" class="metric-value">-</span>
+                        </div>
+                        <div class="metric">
+                            <span class="metric-label">Avg Units/Block:</span>
+                            <span id="metricAvgUnits" class="metric-value">-</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Log -->
+            </div>
+
+            <!-- Right Panel: Visualization -->
+            <div class="right-panel">
+                <section class="card log-section">
+                    <h2>Training Log</h2>
+                    <div id="logContainer" class="log-container"></div>
+                </section>
+                <section class="card visualization-section">
+                    <div class="viz-header">
+                        <h2>Champion Model Visualization</h2>
+                        <button id="copyModelBtn" class="btn btn-secondary">Copy Model JSON</button>
+                    </div>
+
+                    <div id="modelViz" class="model-viz">
+                        <p class="placeholder">Start training to see the champion model...</p>
+                    </div>
+
+                    <!-- Block Details Modal (shown when clicking a block) -->
+                    <div id="blockDetails" class="block-details hidden">
+                        <div class="block-details-header">
+                            <h3 id="blockDetailsTitle">Block Details</h3>
+                            <button id="closeDetailsBtn" class="btn-close">&times;</button>
+                        </div>
+                        <div id="blockDetailsContent" class="block-details-content"></div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+</body>
+
+</html>

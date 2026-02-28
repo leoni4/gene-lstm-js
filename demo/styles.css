@@ -33,7 +33,7 @@ body {
     padding: 20px;
 }
 
-header {
+header, .problem-selector {
     text-align: center;
     margin-bottom: 30px;
     padding: 20px;
@@ -54,6 +54,25 @@ header h1 {
 .subtitle {
     color: var(--text-secondary);
     font-size: 1.1rem;
+}
+
+/* Problem Selector */
+.problem-selector {
+    margin-bottom: 20px;
+}
+
+.problem-description {
+    margin-top: 15px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-left: 3px solid var(--accent-primary);
+    border-radius: 4px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.problem-description strong {
+    color: var(--accent-primary);
 }
 
 .main-layout {
@@ -112,6 +131,22 @@ header h1 {
 }
 
 .control-group input:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+}
+
+.control-group select {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.control-group select:focus {
     outline: none;
     border-color: var(--accent-primary);
 }

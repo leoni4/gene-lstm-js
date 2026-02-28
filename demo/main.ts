@@ -1,5 +1,14 @@
 import { GeneLSTM } from '../src/gLstm.js';
-import { lastBit } from './problems.js';
+import {
+    lastBit,
+    testLstmSineNext01,
+    testLstmAdding01,
+    testLstmParity01,
+    testLstmTrend01,
+    testLstmWaveMix01,
+    testHierarchicalSegmentMajorityAdd,
+    testHierarchicalSegmentXorAdd,
+} from './problems.js';
 import type { LstmOptions } from '../src/types/index.js';
 
 // ========== Types ==========
@@ -9,11 +18,64 @@ interface Complexity {
     avgUnitsPerBlock: number;
 }
 
+// ========== Problem Definitions ==========
+const problems = {
+    lastBit: {
+        build: () => lastBit.build(),
+        inputFeatures: 1,
+        description:
+            '<strong>Last Bit:</strong> Learn to output the last bit of a 4-bit binary sequence. Simple memory task with 16 samples. Perfect for quick testing.',
+    },
+    sineNext: {
+        build: () => testLstmSineNext01.build(),
+        inputFeatures: 1,
+        description:
+            '<strong>Sine Wave Prediction:</strong> Predict the next value in a sine wave sequence. Tests the ability to learn periodic patterns. 512 samples, sequence length 20.',
+    },
+    adding: {
+        build: () => testLstmAdding01.build(),
+        inputFeatures: 2,
+        description:
+            '<strong>Adding Task:</strong> Add two marked values in a sequence of random numbers. Classic LSTM benchmark testing long-term dependencies. 2048 samples, sequence length 40.',
+    },
+    parity: {
+        build: () => testLstmParity01.build(),
+        inputFeatures: 1,
+        description:
+            '<strong>Parity Check:</strong> Calculate XOR (parity) of a binary sequence. Tests sequential logic and memory. 2048 samples, sequence length 32.',
+    },
+    trend: {
+        build: () => testLstmTrend01.build(),
+        inputFeatures: 1,
+        description:
+            '<strong>Trend Detection:</strong> Determine if a noisy time series is trending up or down. Tests pattern recognition in noisy data. 3000 samples, sequence length 30.',
+    },
+    waveMix: {
+        build: () => testLstmWaveMix01.build(),
+        inputFeatures: 1,
+        description:
+            '<strong>Wave Mix Prediction:</strong> Predict next value in a complex wave formed by mixing multiple sine waves. Tests learning of complex periodic patterns. 2048 samples, sequence length 25.',
+    },
+    hierarchicalMajority: {
+        build: () => testHierarchicalSegmentMajorityAdd.build(),
+        inputFeatures: 3,
+        description:
+            '<strong>Hierarchical Majority:</strong> Segment-wise majority voting with hierarchical structure. Each segment has marked values to add; output is 1 if majority of segments exceed threshold. Tests hierarchical reasoning. 512 samples, 4 segments of 5 timesteps each.',
+    },
+    hierarchicalXor: {
+        build: () => testHierarchicalSegmentXorAdd.build(),
+        inputFeatures: 3,
+        description:
+            '<strong>Hierarchical XOR:</strong> Segment-wise XOR parity with hierarchical structure. Each segment has marked values; compute local parity then global XOR. Tests hierarchical logic. 512 samples, 4 segments of 5 timesteps each.',
+    },
+};
+
 // ========== Global State ==========
 let glstm: GeneLSTM | null = null;
 let isTraining = false;
 let shouldStop = false;
-let dataset = lastBit.build();
+let currentProblem = 'lastBit';
+let dataset = problems[currentProblem].build();
 
 // ========== DOM Elements ==========
 const trainBtn = document.getElementById('trainBtn') as HTMLButtonElement;
@@ -25,6 +87,8 @@ const modelViz = document.getElementById('modelViz') as HTMLDivElement;
 const copyModelBtn = document.getElementById('copyModelBtn') as HTMLButtonElement;
 const blockDetails = document.getElementById('blockDetails') as HTMLDivElement;
 const closeDetailsBtn = document.getElementById('closeDetailsBtn') as HTMLButtonElement;
+const problemSelect = document.getElementById('problemSelect') as HTMLSelectElement;
+const problemDescription = document.getElementById('problemDescription') as HTMLDivElement;
 
 // ========== Utility Functions ==========
 function log(message: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') {
@@ -277,9 +341,10 @@ async function trainModel() {
 
     log(`Starting training (max ${maxEpochs} epochs, threshold: ${errorThreshold})`, 'info');
 
-    // Initialize GeneLSTM
+    // Initialize GeneLSTM with correct INPUT_FEATURES for current problem
+    const inputFeatures = problems[currentProblem].inputFeatures;
     glstm = new GeneLSTM(250, {
-        INPUT_FEATURES: 1, // lastBit has scalar sequence
+        INPUT_FEATURES: inputFeatures,
         verbose: 0,
     });
 
@@ -409,6 +474,36 @@ function copyModelToClipboard() {
         });
 }
 
+// ========== Problem Selection ==========
+function handleProblemChange() {
+    if (isTraining) {
+        log('Cannot change problem while training', 'warning');
+        problemSelect.value = currentProblem;
+
+        return;
+    }
+
+    currentProblem = problemSelect.value as keyof typeof problems;
+    const problem = problems[currentProblem];
+
+    // Update dataset
+    dataset = problem.build();
+
+    // Update description
+    problemDescription.innerHTML = problem.description;
+
+    // Clear visualization
+    modelViz.innerHTML = '<p class="placeholder">Start training to see the champion model...</p>';
+
+    // Clear log and add new entries
+    logContainer.innerHTML = '';
+    log('Problem changed', 'info');
+    log(
+        `Dataset: ${currentProblem} (${dataset.inputs.length} samples, ${problem.inputFeatures} input features)`,
+        'info',
+    );
+}
+
 // ========== Event Listeners ==========
 trainBtn.addEventListener('click', trainModel);
 stopBtn.addEventListener('click', stopTraining);
@@ -416,6 +511,7 @@ copyModelBtn.addEventListener('click', copyModelToClipboard);
 closeDetailsBtn.addEventListener('click', () => {
     blockDetails.classList.add('hidden');
 });
+problemSelect.addEventListener('change', handleProblemChange);
 
 // Close details on background click
 blockDetails.addEventListener('click', e => {
@@ -426,4 +522,7 @@ blockDetails.addEventListener('click', e => {
 
 // ========== Initialization ==========
 log('Demo initialized. Click "Start Training" to begin.', 'info');
-log(`Dataset: lastBit (${dataset.inputs.length} samples)`, 'info');
+log(
+    `Dataset: ${currentProblem} (${dataset.inputs.length} samples, ${problems[currentProblem].inputFeatures} input features)`,
+    'info',
+);

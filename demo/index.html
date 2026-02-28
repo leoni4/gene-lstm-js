@@ -15,6 +15,27 @@
             <p class="subtitle">Evolutionary LSTM Training with Genetic Algorithms</p>
         </header>
 
+        <section class="problem-selector card">
+            <h2>Problem Selector</h2>
+            <div class="control-group">
+                <label for="problemSelect">Choose a problem:</label>
+                <select id="problemSelect" class="problem-select">
+                    <option value="lastBit">Last Bit - Remember the last element of a binary sequence</option>
+                    <option value="sineNext">Sine Wave Prediction - Predict next value in sine wave</option>
+                    <option value="adding">Adding Task - Add two marked values in a sequence</option>
+                    <option value="parity">Parity Check - Calculate XOR of binary sequence</option>
+                    <option value="trend">Trend Detection - Determine if sequence is trending up or down</option>
+                    <option value="waveMix">Wave Mix Prediction - Predict next value in complex wave</option>
+                    <option value="hierarchicalMajority">Hierarchical Majority - Segment-wise majority voting</option>
+                    <option value="hierarchicalXor">Hierarchical XOR - Segment-wise XOR parity</option>
+                </select>
+            </div>
+            <div id="problemDescription" class="problem-description">
+                <strong>Last Bit:</strong> Learn to output the last bit of a 4-bit binary sequence. Simple memory task
+                with 16 samples. Perfect for quick testing.
+            </div>
+        </section>
+
         <div class="main-layout">
             <!-- Left Panel: Controls + Metrics + Logs -->
             <div class="left-panel">

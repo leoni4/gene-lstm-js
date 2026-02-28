@@ -19,7 +19,62 @@ npm install @leoni4/gene-lstm-js
 
 ## Usage
 
-### Basic Example
+### Basic Library Usage
+
+```typescript
+import { GeneLSTM } from '@leoni4/gene-lstm-js';
+
+// Create a GeneLSTM instance
+const glstm = new GeneLSTM(300);
+
+// Training data (lastBit example)
+export const lastBit = {
+    inputs: [
+        [0, 0, 0, 0],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0],
+        [0, 0, 1, 1],
+        [0, 1, 0, 0],
+        [0, 1, 0, 1],
+        [0, 1, 1, 0],
+        [0, 1, 1, 1],
+        [1, 0, 0, 0],
+        [1, 0, 0, 1],
+        [1, 0, 1, 0],
+        [1, 0, 1, 1],
+        [1, 1, 0, 0],
+        [1, 1, 0, 1],
+        [1, 1, 1, 0],
+        [1, 1, 1, 1],
+    ],
+    outputs: [
+        0, // last = 0
+        1, // last = 1
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+    ],
+};
+
+const solved = glstm.fit(lastBit.inputs, lastBit.outputs, {
+    verbose: 2,
+});
+
+console.log('solved in:', solved.epochs);
+```
+
+### Manual Library Usage
 
 ```typescript
 import { GeneLSTM } from '@leoni4/gene-lstm-js';

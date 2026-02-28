@@ -148,9 +148,12 @@ const usetraining = async () => {
 
 const useFit = () => {
     const glstm = new GeneLSTM(300);
-    glstm.fit(lastBit.inputs, lastBit.outputs, {
+
+    const solved = glstm.fit(lastBit.inputs, lastBit.outputs, {
         verbose: 2,
     });
+
+    console.log('solved in:', solved.epochs);
 };
 
 // usePreTrained();

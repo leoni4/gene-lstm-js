@@ -8,6 +8,7 @@ import {
     testLstmWaveMix01,
     testHierarchicalSegmentMajorityAdd,
     testHierarchicalSegmentXorAdd,
+    lastBit,
 } from './problems.js';
 
 console.log(
@@ -18,6 +19,7 @@ console.log(
     !testLstmWaveMix01,
     !testHierarchicalSegmentMajorityAdd,
     !testHierarchicalSegmentXorAdd,
+    !lastBit,
 );
 
 const trainingData = {
@@ -27,17 +29,6 @@ const trainingData = {
     ],
     outputs: [0, 1],
 };
-
-process.on('unhandledRejection', (reason: any) => {
-    console.error('UNHANDLED REJECTION:', reason);
-    console.error('STACK:', reason?.stack);
-});
-
-process.on('uncaughtException', (err: any) => {
-    console.error('UNCAUGHT EXCEPTION:', err);
-    console.error('STACK:', err?.stack);
-    process.exitCode = 1;
-});
 
 // const testData = {
 //     inputs: [
@@ -110,7 +101,7 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
                 const localError = localErrorSum / data.inputs.length;
                 const meanPred = predSum / data.inputs.length;
                 const penalty = LAMBDA_MEAN * Math.abs(meanPred - 0.5);
-                const penaltyClass = LAMBDA_MEAN * Math.abs(classSolved / data.inputs.length);
+                const penaltyClass = LAMBDA_MEAN * Math.abs((data.inputs.length - classSolved) / data.inputs.length);
                 const penaltyBlunder = LAMBDA_MEAN * Math.abs(blunder / data.inputs.length);
                 const finalError = Math.min(1, localError + penalty + penaltyClass + penaltyBlunder);
 
@@ -126,7 +117,7 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
 
             console.log('Epoch:', epoch, ' Error:', bestError);
 
-            if (epoch % 10 === 0) glstm.printSpecies();
+            if (epoch % 100 === 0) glstm.printSpecies();
 
             if (epoch >= EPOCHS || bestError < 0.01) {
                 resolve(bestError);
@@ -146,12 +137,13 @@ const train = (glstm: GeneLSTM, data = trainingData, epochsPasseg = 1000) => {
 
 const usetraining = async () => {
     const glstm = new GeneLSTM(300, {
-        INPUT_FEATURES: 3,
-        verbose: 2,
+        // INPUT_FEATURES: 3,
+        // verbose: 2,
     });
     glstm.printSpecies();
-    const data = testHierarchicalSegmentMajorityAdd.build();
+    // const data = testHierarchicalSegmentMajorityAdd.build();
     // const data = trainingData;
+    const data = lastBit;
     console.log('---- START TRAIN -----');
 
     await train(glstm, data, 1000);

@@ -1,3 +1,5 @@
+import { Client } from '../client.js';
+
 export enum EMutationPressure {
     COMPACT = 'COMPACT',
     NORMAL = 'NORMAL',
@@ -64,3 +66,26 @@ export type GateUnitOptions = {
     bias: number;
     weightIn?: number[]; // vector input weights (len = INPUT_FEATURES)
 };
+
+export interface IGlstmFitOptions {
+    epochs?: number;
+    errorThreshold?: number;
+    validationSplit?: number;
+    verbose?: 0 | 1 | 2;
+    logInterval?: number;
+
+    // new
+    loss?: 'mae' | 'mse' | 'bce';
+    outputMode?: 'auto' | 'binary' | 'regression'; // mostly for logging/thresholding
+    antiConstantPenalty?: boolean;
+    antiConstantLambda?: number; // default 0.05
+    shuffleEachEpoch?: boolean;
+}
+
+export interface IGlstmFitHistory {
+    error: number[];
+    validationError?: number[];
+    epochs: number;
+    champion: Client | null;
+    stoppedEarly: boolean;
+}

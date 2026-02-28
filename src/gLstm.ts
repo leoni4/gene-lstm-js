@@ -3,8 +3,9 @@ import { Species } from './species.js';
 import { Genome } from './genome.js';
 import { RandomSelector } from './randomSelector.js';
 
-import type { GeneOptions, SleepingBlockConfig } from './types/index.js';
-import { EMutationPressure, MUTATION_PRESSURE_CONST } from './types/index.js';
+import type { GeneOptions, SleepingBlockConfig, SeqInput } from './types/index.js';
+import { EMutationPressure, MUTATION_PRESSURE_CONST, IGlstmFitOptions, IGlstmFitHistory } from './types/index.js';
+import { computeLoss, isY2D, mean, variance } from './helpers/index.js';
 
 const HISTORY_WINDOW = 50;
 const SMALL_GAIN_THRESHOLD = 0.01;
@@ -422,6 +423,195 @@ export class GeneLSTM {
             console.log('#', this._species[i].score, this._species[i].size());
         }
         console.log('###');
+    }
+
+    fit(xTrain: SeqInput[], yTrain: SeqInput, options: IGlstmFitOptions = {}): IGlstmFitHistory {
+        // ---- validate ----
+        if (!xTrain || !yTrain || xTrain.length === 0) {
+            throw new Error('Training data cannot be empty');
+        }
+        if (xTrain.length !== yTrain.length) {
+            throw new Error(
+                `Input and output data must have the same length (got ${xTrain.length} vs ${yTrain.length})`,
+            );
+        }
+
+        const maxEpochs = options.epochs ?? Infinity;
+        const errorThreshold = options.errorThreshold ?? 0.01;
+        const validationSplit = options.validationSplit ?? 0;
+        const verbose = options.verbose ?? 1;
+        const logInterval = options.logInterval ?? 100;
+
+        const loss = options.loss ?? 'mae';
+        const antiConst = options.antiConstantPenalty ?? true;
+        const antiLambda = options.antiConstantLambda ?? 0.05;
+        const shuffleEachEpoch = options.shuffleEachEpoch ?? true;
+
+        if (validationSplit < 0 || validationSplit >= 1) {
+            throw new Error('validationSplit must be between 0 and 1 (exclusive)');
+        }
+
+        // normalize y into 2D array targets
+        const y2d: number[][] = isY2D(yTrain) ? yTrain : (yTrain as number[]).map(v => [v]);
+
+        const outputDim = y2d[0]?.length ?? 1;
+
+        // split train/val
+        let trainX = xTrain;
+        let trainY = y2d;
+        let valX: SeqInput[] | null = null;
+        let valY: number[][] | null = null;
+
+        if (validationSplit > 0) {
+            const splitIndex = Math.floor(xTrain.length * (1 - validationSplit));
+            trainX = xTrain.slice(0, splitIndex);
+            trainY = y2d.slice(0, splitIndex);
+            valX = xTrain.slice(splitIndex);
+            valY = y2d.slice(splitIndex);
+
+            if (trainX.length === 0) throw new Error('Validation split too large, no training data remaining');
+        }
+
+        const history: IGlstmFitHistory = {
+            error: [],
+            validationError: valX ? [] : undefined,
+            epochs: 0,
+            champion: null,
+            stoppedEarly: false,
+        };
+
+        // index array for shuffling
+        const idx = new Array(trainX.length).fill(0).map((_, i) => i);
+
+        let epoch = 0;
+
+        while (epoch < maxEpochs) {
+            if (shuffleEachEpoch) {
+                for (let i = idx.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [idx[i], idx[j]] = [idx[j], idx[i]];
+                }
+            }
+
+            let bestScore = -Infinity;
+            let bestClient: Client = this._clients[0];
+            let bestError = Infinity;
+
+            // ---- evaluate population ----
+            for (const client of this._clients) {
+                let totalLoss = 0;
+
+                // for anti-constant: collect predictions (for 1D output only)
+                const predsForPenalty: number[] = antiConst && outputDim === 1 ? [] : [];
+
+                for (let ii = 0; ii < idx.length; ii++) {
+                    const i = idx[ii];
+                    const pred = client.calculate(trainX[i]); // returns number[]
+                    const target = trainY[i];
+
+                    // safety: ensure correct dimension
+                    if (pred.length !== outputDim) {
+                        // tolerate by slicing/padding
+                        const p = pred.slice(0, outputDim);
+                        while (p.length < outputDim) p.push(0);
+                        totalLoss += computeLoss(p, target, loss);
+                        if (predsForPenalty.length) predsForPenalty.push(p[0]);
+                    } else {
+                        totalLoss += computeLoss(pred, target, loss);
+                        if (predsForPenalty.length) predsForPenalty.push(pred[0]);
+                    }
+                }
+
+                let err = totalLoss / trainX.length;
+
+                // anti-constant penalty (helps avoid 0.5 plateaus for binary tasks)
+                if (antiConst && outputDim === 1) {
+                    const m = mean(predsForPenalty);
+                    const v = variance(predsForPenalty);
+
+                    // mean penalty discourages always ~0 or ~1
+                    const meanPenalty = antiLambda * Math.abs(m - 0.5);
+
+                    // variance penalty discourages always constant (esp. 0.5)
+                    const varPenalty = (antiLambda * 0.5) / (v + 1e-6);
+
+                    err = Math.min(10, err + meanPenalty + varPenalty);
+                }
+
+                client.error = err;
+
+                // score: map lower error to higher score, keep in (0,1]
+                // simple: score = 1 / (1 + err)  (more stable than 1-err for losses like BCE)
+                client.score = 1 / (1 + err);
+
+                // tiny tie-breaker noise (important on flat landscapes)
+                client.score += Math.random() * 1e-9;
+
+                if (client.score > bestScore) {
+                    bestScore = client.score;
+                    bestClient = client;
+                    bestError = err;
+                }
+            }
+
+            history.error.push(bestError);
+
+            // ---- validation ----
+            let valErr: number | undefined;
+            if (valX && valY) {
+                let totalVal = 0;
+                for (let i = 0; i < valX.length; i++) {
+                    const pred = bestClient.calculate(valX[i]);
+                    const target = valY[i];
+
+                    const p =
+                        pred.length === outputDim
+                            ? pred
+                            : [...pred.slice(0, outputDim), ...new Array(Math.max(0, outputDim - pred.length)).fill(0)];
+                    totalVal += computeLoss(p, target, loss);
+                }
+                valErr = totalVal / valX.length;
+                history.validationError!.push(valErr);
+            }
+
+            // ---- logging ----
+            if (verbose === 2 || (verbose === 1 && (epoch % logInterval === 0 || epoch === 0))) {
+                const blocks = bestClient.genome.lstmArray.length;
+                const units = bestClient.genome.lstmArray.reduce((acc, lstm) => acc + (lstm.readoutW?.length ?? 1), 0);
+                let msg = `Epoch ${epoch} - error: ${bestError.toFixed(6)} - blocks: ${blocks} - units: ${units}`;
+
+                if (valErr !== undefined) msg += ` - val_error: ${valErr.toFixed(6)}`;
+
+                if (verbose === 2) {
+                    msg += ` - species: ${this._species.length} - pressure: ${this._mutationPressure} - CP: ${this._CP.toFixed(4)}`;
+                }
+                console.log(msg);
+            }
+
+            // ---- early stop ----
+            if (bestError <= errorThreshold) {
+                history.stoppedEarly = true;
+                history.epochs = epoch;
+                history.champion = this._champion ?? bestClient;
+
+                if (verbose > 0) console.log(`✓ Training completed: error threshold reached at epoch ${epoch}`);
+                break;
+            }
+
+            // evolve
+            const shouldOptimize = bestError <= 0.02; // можно связать с твоим OPT_ERR_THRESHOLD
+            this.evolve(shouldOptimize);
+
+            epoch++;
+        }
+
+        if (!history.stoppedEarly) {
+            history.epochs = epoch;
+            history.champion = this._champion ?? this._clients[0];
+            if (verbose > 0) console.log(`Training completed: max epochs (${maxEpochs}) reached`);
+        }
+
+        return history;
     }
 
     /**

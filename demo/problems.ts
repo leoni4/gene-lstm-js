@@ -178,6 +178,7 @@ export const testHierarchicalSegmentMajorityAdd = {
         let s = seed >>> 0;
         const rand = () => {
             s = (1664525 * s + 1013904223) >>> 0;
+
             return s / 0xffffffff;
         };
 
@@ -319,3 +320,42 @@ export const testHierarchicalSegmentXorAdd = {
         return { ...this, inputs, outputs };
     },
 } as const;
+
+export const lastBit = {
+    inputs: [
+        [0, 0, 0, 0],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0],
+        [0, 0, 1, 1],
+        [0, 1, 0, 0],
+        [0, 1, 0, 1],
+        [0, 1, 1, 0],
+        [0, 1, 1, 1],
+        [1, 0, 0, 0],
+        [1, 0, 0, 1],
+        [1, 0, 1, 0],
+        [1, 0, 1, 1],
+        [1, 1, 0, 0],
+        [1, 1, 0, 1],
+        [1, 1, 1, 0],
+        [1, 1, 1, 1],
+    ],
+    outputs: [
+        0, // last = 0
+        1, // last = 1
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+        0,
+        1,
+    ],
+};

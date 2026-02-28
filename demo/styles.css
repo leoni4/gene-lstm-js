@@ -339,12 +339,14 @@ header h1 {
     border: 2px solid var(--accent-primary);
     border-radius: 12px;
     padding: 0;
-    max-width: 90%;
+    width: 100%;
+    max-width: 520px;
     max-height: 90vh;
     overflow: auto;
     z-index: 1000;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
+
 
 .block-details.hidden {
     display: none;
@@ -367,8 +369,21 @@ header h1 {
 }
 
 .heatmap-section {
-    margin-bottom: 30px;
+    margin: 10px;
+    float: right;
+    text-align: center;
 }
+
+.heatmap-section:nth-child(2n){
+    float: left;
+}
+
+@media (max-width: 520px) {
+    .heatmap-section, .heatmap-section:nth-child(2n) {
+        float: none;
+    }
+}
+
 
 .heatmap-section h4 {
     color: var(--text-primary);

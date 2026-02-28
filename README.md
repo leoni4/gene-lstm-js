@@ -79,7 +79,7 @@ console.log('solved in:', solved.epochs);
 ```typescript
 import { GeneLSTM } from '@leoni4/gene-lstm-js';
 
-// Training data
+// Training data just random example
 const trainingData = {
     inputs: [
         [0, 0.5, 0.25, 1],

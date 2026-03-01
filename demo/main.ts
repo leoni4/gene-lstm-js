@@ -327,6 +327,10 @@ function renderHeatmap(
     return canvas;
 }
 
+async function sleep(num: number = 0) {
+    return new Promise(resolve => setTimeout(resolve, num));
+}
+
 // ========== Training Loop ==========
 async function trainModel() {
     if (isTraining) return;
@@ -351,6 +355,8 @@ async function trainModel() {
     let epoch = 0;
     let bestError = Infinity;
     let bestScore = 0;
+    let handledCalcs = 0;
+    const ALLOWED_CALCS = 5000;
 
     while (epoch < maxEpochs && !shouldStop) {
         // Evaluate all clients
@@ -358,6 +364,11 @@ async function trainModel() {
             let totalError = 0;
 
             for (let i = 0; i < dataset.inputs.length; i++) {
+                handledCalcs++;
+                if (handledCalcs >= ALLOWED_CALCS) {
+                    await sleep(0);
+                    handledCalcs = 0;
+                }
                 const input = dataset.inputs[i];
                 const target = dataset.outputs[i];
                 const prediction = client.calculate(input)[0];

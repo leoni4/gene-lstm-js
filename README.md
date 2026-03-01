@@ -25,16 +25,18 @@ npm install @leoni4/gene-lstm-js
 
 ## Usage
 
-### Basic Library Usage
+### Quick Start with `fit()` Method
+
+The `fit()` method provides a simple, Keras-style API for training Gene LSTM networks:
 
 ```typescript
 import { GeneLSTM } from '@leoni4/gene-lstm-js';
 
-// Create a GeneLSTM instance
+// Create a GeneLSTM instance with 300 clients
 const glstm = new GeneLSTM(300);
 
-// Training data (lastBit example)
-export const lastBit = {
+// Training data (lastBit example - predict the last bit in a sequence)
+const lastBit = {
     inputs: [
         [0, 0, 0, 0],
         [0, 0, 0, 1],
@@ -73,11 +75,18 @@ export const lastBit = {
     ],
 };
 
-const solved = glstm.fit(lastBit.inputs, lastBit.outputs, {
+// Train the network
+const history = glstm.fit(lastBit.inputs, lastBit.outputs, {
+    epochs: 1000,
     verbose: 2,
 });
 
-console.log('solved in:', solved.epochs);
+console.log('Training completed in:', history.epochs, 'epochs');
+console.log('Final error:', history.error[history.error.length - 1]);
+
+// Use the trained champion to make predictions
+const prediction = history.champion!.calculate([1, 0, 1, 1]);
+console.log('Prediction:', prediction);
 ```
 
 ### Manual Library Usage
@@ -226,6 +235,65 @@ new GeneLSTM(clients: number, options?: GeneLSTMOptions)
 ```
 
 **Key Methods:**
+
+- **`fit(xTrain: SeqInput[], yTrain: SeqInput, options?: IGlstmFitOptions): IGlstmFitHistory`**
+
+    High-level training method with automatic evolution and error tracking. Provides a Keras-like API for training.
+
+    **Parameters:**
+    - `xTrain`: Array of input sequences (can be 1D or 2D arrays)
+    - `yTrain`: Array of target outputs (can be 1D numbers or 2D arrays)
+    - `options`: Training configuration object
+
+    **Options (`IGlstmFitOptions`):**
+
+    ```typescript
+    {
+      epochs?: number;              // Maximum number of training epochs (default: Infinity)
+      errorThreshold?: number;      // Stop when error below this value (default: 0.01)
+      validationSplit?: number;     // Fraction of data for validation (default: 0)
+      verbose?: 0 | 1 | 2;         // Logging level (default: 1)
+                                    // 0 = silent, 1 = periodic, 2 = detailed
+      logInterval?: number;         // Log every N epochs when verbose=1 (default: 100)
+
+      loss?: 'mae' | 'mse' | 'bce'; // Loss function (default: 'mae')
+                                     // mae = Mean Absolute Error
+                                     // mse = Mean Squared Error
+                                     // bce = Binary Cross Entropy
+
+      antiConstantPenalty?: boolean;     // Penalize constant predictions (default: false)
+      antiConstantLambda?: number;       // Penalty strength (default: 0.05)
+      shuffleEachEpoch?: boolean;        // Shuffle training data (default: true)
+    }
+    ```
+
+    **Returns (`IGlstmFitHistory`):**
+
+    ```typescript
+    {
+      error: number[];              // Training error per epoch
+      validationError?: number[];   // Validation error per epoch (if validationSplit > 0)
+      epochs: number;               // Total epochs completed
+      champion: Client | null;      // Best trained network
+      stoppedEarly: boolean;        // True if stopped due to errorThreshold
+    }
+    ```
+
+    **Example:**
+
+    ```typescript
+    const history = glstm.fit(xTrain, yTrain, {
+        epochs: 1000,
+        errorThreshold: 0.01,
+        validationSplit: 0.2,
+        verbose: 2,
+        loss: 'mae',
+        antiConstantPenalty: true,
+    });
+
+    console.log('Final error:', history.error[history.error.length - 1]);
+    const prediction = history.champion!.calculate([1, 0, 1]);
+    ```
 
 - `evolve(optimization?: boolean)` - Evolve the population for one generation
 - `printSpecies()` - Print current species statistics

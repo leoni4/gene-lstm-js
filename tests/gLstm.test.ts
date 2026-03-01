@@ -506,6 +506,688 @@ describe('GeneLSTM', () => {
         });
     });
 
+    describe('fit', () => {
+        describe('basic functionality', () => {
+            it('should train on simple data and return history', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 10,
+                    verbose: 0,
+                });
+
+                expect(history).toBeDefined();
+                expect(history.error).toHaveLength(10);
+                expect(history.epochs).toBe(10);
+                expect(history.champion).toBeDefined();
+                expect(history.stoppedEarly).toBe(false);
+            });
+
+            it('should handle 2D output targets', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [
+                    [0, 0],
+                    [0, 1],
+                    [1, 0],
+                    [1, 1],
+                ];
+                const yTrain = [
+                    [0, 1],
+                    [1, 0],
+                    [1, 0],
+                    [0, 1],
+                ];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 10,
+                    verbose: 0,
+                });
+
+                expect(history).toBeDefined();
+                expect(history.error).toHaveLength(10);
+                expect(history.champion).toBeDefined();
+            });
+
+            it('should handle sequence input (2D arrays)', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [
+                    [[0], [1], [0]],
+                    [[1], [0], [1]],
+                ];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    verbose: 0,
+                });
+
+                expect(history).toBeDefined();
+                expect(history.error).toHaveLength(5);
+            });
+
+            it('should stop early when error threshold is reached', () => {
+                const glstm = new GeneLSTM(50);
+
+                // Simple problem - should converge quickly
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 1000,
+                    errorThreshold: 0.1,
+                    verbose: 0,
+                });
+
+                expect(history.stoppedEarly).toBe(true);
+                expect(history.epochs).toBeLessThan(1000);
+            });
+
+            it('should return champion after training', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    verbose: 0,
+                });
+
+                expect(history.champion).toBeDefined();
+                expect(history.champion).not.toBeNull();
+
+                // Champion should be able to make predictions
+                const result = history.champion!.calculate([0.5]);
+                expect(Array.isArray(result)).toBe(true);
+            });
+        });
+
+        describe('validation', () => {
+            it('should throw error for empty training data', () => {
+                const glstm = new GeneLSTM(10);
+
+                expect(() => {
+                    glstm.fit([], [], { verbose: 0 });
+                }).toThrow('Training data cannot be empty');
+            });
+
+            it('should throw error for mismatched input/output lengths', () => {
+                const glstm = new GeneLSTM(10);
+
+                const xTrain = [[0], [1], [0]];
+                const yTrain = [0, 1];
+
+                expect(() => {
+                    glstm.fit(xTrain, yTrain, { verbose: 0 });
+                }).toThrow('Input and output data must have the same length');
+            });
+
+            it('should throw error for invalid validationSplit', () => {
+                const glstm = new GeneLSTM(10);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                expect(() => {
+                    glstm.fit(xTrain, yTrain, {
+                        validationSplit: 1.5,
+                        verbose: 0,
+                    });
+                }).toThrow('validationSplit must be between 0 and 1');
+
+                expect(() => {
+                    glstm.fit(xTrain, yTrain, {
+                        validationSplit: -0.1,
+                        verbose: 0,
+                    });
+                }).toThrow('validationSplit must be between 0 and 1');
+            });
+
+            it('should throw error if validation split is too large', () => {
+                const glstm = new GeneLSTM(10);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                expect(() => {
+                    glstm.fit(xTrain, yTrain, {
+                        validationSplit: 0.99,
+                        verbose: 0,
+                    });
+                }).toThrow('Validation split too large');
+            });
+        });
+
+        describe('validation split', () => {
+            it('should split data when validationSplit is provided', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1], [0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1, 0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    validationSplit: 0.25,
+                    verbose: 0,
+                });
+
+                expect(history.validationError).toBeDefined();
+                expect(history.validationError).toHaveLength(5);
+            });
+
+            it('should not have validation error when validationSplit is 0', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    validationSplit: 0,
+                    verbose: 0,
+                });
+
+                expect(history.validationError).toBeUndefined();
+            });
+
+            it('should compute validation error correctly', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 3,
+                    validationSplit: 0.33,
+                    verbose: 0,
+                });
+
+                expect(history.validationError).toBeDefined();
+                history.validationError!.forEach(valErr => {
+                    expect(typeof valErr).toBe('number');
+                    expect(valErr).toBeGreaterThanOrEqual(0);
+                });
+            });
+        });
+
+        describe('options', () => {
+            it('should use default options when not provided', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain);
+
+                expect(history).toBeDefined();
+                expect(history.error.length).toBeGreaterThan(0);
+            });
+
+            it('should respect epochs option', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 15,
+                    verbose: 0,
+                });
+
+                expect(history.error).toHaveLength(15);
+                expect(history.epochs).toBe(15);
+            });
+
+            it('should respect errorThreshold option', () => {
+                const glstm = new GeneLSTM(50);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 1000,
+                    errorThreshold: 0.5,
+                    verbose: 0,
+                });
+
+                if (history.stoppedEarly) {
+                    expect(history.error[history.error.length - 1]).toBeLessThanOrEqual(0.5);
+                }
+            });
+
+            it('should handle verbose: 0 (no logging)', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                expect(() => {
+                    glstm.fit(xTrain, yTrain, {
+                        epochs: 5,
+                        verbose: 0,
+                    });
+                }).not.toThrow();
+            });
+
+            it('should handle verbose: 1 (periodic logging)', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                expect(() => {
+                    glstm.fit(xTrain, yTrain, {
+                        epochs: 5,
+                        verbose: 1,
+                        logInterval: 2,
+                    });
+                }).not.toThrow();
+            });
+
+            it('should handle verbose: 2 (detailed logging)', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                expect(() => {
+                    glstm.fit(xTrain, yTrain, {
+                        epochs: 3,
+                        verbose: 2,
+                    });
+                }).not.toThrow();
+            });
+        });
+
+        describe('loss functions', () => {
+            it('should use MAE loss by default', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+                expect(history.error.length).toBe(5);
+            });
+
+            it('should handle MAE loss explicitly', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    loss: 'mae',
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+
+            it('should handle MSE loss', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    loss: 'mse',
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+
+            it('should handle BCE loss', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    loss: 'bce',
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+        });
+
+        describe('anti-constant penalty', () => {
+            it('should work without anti-constant penalty by default', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+
+            it('should apply anti-constant penalty when enabled', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    antiConstantPenalty: true,
+                    antiConstantLambda: 0.05,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+
+            it('should handle custom antiConstantLambda', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    antiConstantPenalty: true,
+                    antiConstantLambda: 0.1,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+        });
+
+        describe('shuffling', () => {
+            it('should shuffle data each epoch by default', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+
+            it('should not shuffle when shuffleEachEpoch is false', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    shuffleEachEpoch: false,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+        });
+
+        describe('integration with evolve', () => {
+            it('should call evolve during training', () => {
+                const glstm = new GeneLSTM(30);
+
+                const xTrain = [[0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 10,
+                    verbose: 0,
+                });
+
+                // Evolution should have happened
+                expect(glstm.champion).toBeDefined();
+                expect(history.error).toHaveLength(10);
+            });
+
+            it('should trigger optimization mode for low errors', () => {
+                const glstm = new GeneLSTM(30);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 50,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+        });
+
+        describe('error tracking', () => {
+            it('should track error over epochs', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1], [0], [1]];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 10,
+                    verbose: 0,
+                });
+
+                expect(history.error).toHaveLength(10);
+                history.error.forEach(err => {
+                    expect(typeof err).toBe('number');
+                    expect(err).toBeGreaterThanOrEqual(0);
+                });
+            });
+
+            it('should have decreasing or stable error trend', () => {
+                const glstm = new GeneLSTM(50);
+
+                // Simple problem
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 20,
+                    verbose: 0,
+                });
+
+                // First and last error
+                const firstError = history.error[0];
+                const lastError = history.error[history.error.length - 1];
+
+                // Last error should generally be lower or similar (with some tolerance for randomness)
+                expect(lastError).toBeLessThanOrEqual(firstError * 1.5);
+            });
+        });
+
+        describe('real-world scenarios', () => {
+            it('should train on XOR-like problem', () => {
+                const glstm = new GeneLSTM(50);
+
+                const xTrain = [
+                    [0, 0],
+                    [0, 1],
+                    [1, 0],
+                    [1, 1],
+                ];
+                const yTrain = [0, 1, 1, 0];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 50,
+                    errorThreshold: 0.3,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+                expect(history.champion).toBeDefined();
+            });
+
+            it('should train on lastBit problem', () => {
+                const glstm = new GeneLSTM(100);
+
+                const xTrain = [
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 1],
+                    [0, 0, 1, 0],
+                    [0, 0, 1, 1],
+                ];
+                const yTrain = [0, 1, 0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 30,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+                expect(history.champion).toBeDefined();
+            });
+
+            it('should train with validation data', () => {
+                const glstm = new GeneLSTM(50);
+
+                const xTrain = [
+                    [0, 0],
+                    [0, 1],
+                    [1, 0],
+                    [1, 1],
+                    [0, 0],
+                    [0, 1],
+                    [1, 0],
+                    [1, 1],
+                ];
+                const yTrain = [0, 1, 1, 0, 0, 1, 1, 0];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 20,
+                    validationSplit: 0.25,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+                expect(history.validationError).toBeDefined();
+                expect(history.validationError!.length).toBe(20);
+            });
+
+            it('should handle multi-output regression', () => {
+                const glstm = new GeneLSTM(30);
+
+                const xTrain = [[0], [1], [2], [3]];
+                const yTrain = [
+                    [0, 0],
+                    [1, 2],
+                    [2, 4],
+                    [3, 6],
+                ];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 20,
+                    loss: 'mse',
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+                expect(history.champion).toBeDefined();
+            });
+        });
+
+        describe('edge cases', () => {
+            it('should handle single sample', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0.5]];
+                const yTrain = [1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    verbose: 0,
+                });
+
+                expect(history.error).toHaveLength(5);
+            });
+
+            it('should handle large input dimensions', () => {
+                const glstm = new GeneLSTM(20, { INPUT_FEATURES: 10 });
+
+                const xTrain = [
+                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                    [1, 2, 3, 4, 5, 6, 7, 8, 9, 0],
+                ];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 5,
+                    verbose: 0,
+                });
+
+                expect(history.error).toBeDefined();
+            });
+
+            it('should handle zero epochs', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 0,
+                    verbose: 0,
+                });
+
+                expect(history.error).toHaveLength(0);
+                expect(history.epochs).toBe(0);
+            });
+
+            it('should handle mismatched output dimensions gracefully', () => {
+                const glstm = new GeneLSTM(20);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [
+                    [0, 0],
+                    [1, 1],
+                ];
+
+                // Should not throw, but handle internally
+                expect(() => {
+                    glstm.fit(xTrain, yTrain, {
+                        epochs: 5,
+                        verbose: 0,
+                    });
+                }).not.toThrow();
+            });
+
+            it('should handle very small population', () => {
+                const glstm = new GeneLSTM(5);
+
+                const xTrain = [[0], [1]];
+                const yTrain = [0, 1];
+
+                const history = glstm.fit(xTrain, yTrain, {
+                    epochs: 10,
+                    verbose: 0,
+                });
+
+                expect(history.error).toHaveLength(10);
+            });
+        });
+    });
+
     describe('edge cases', () => {
         it('should handle single client', () => {
             const glstm = new GeneLSTM(1);

@@ -375,7 +375,7 @@ header h1 {
     border-radius: 12px;
     padding: 0;
     width: 100%;
-    max-width: 520px;
+    max-width: 600px;
     max-height: 90vh;
     overflow: auto;
     z-index: 1000;
@@ -413,7 +413,7 @@ header h1 {
     float: left;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 570px) {
     .heatmap-section, .heatmap-section:nth-child(2n) {
         float: none;
     }

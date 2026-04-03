@@ -1,6 +1,6 @@
 {
     "name": "@leoni4/gene-lstm-js",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "description": "LSTM Genetic Neural Network Implementation in TypeScript",
     "type": "module",
     "main": "./dist/index.js",
@@ -9,7 +9,8 @@
     "exports": {
         ".": {
             "import": "./dist/index.js",
-            "types": "./dist/index.d.ts"
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
         }
     },
     "files": [

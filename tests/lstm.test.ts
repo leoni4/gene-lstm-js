@@ -414,6 +414,7 @@ describe('LSTM', () => {
         it('should mutate readout weights', () => {
             const glstmReadoutMutation = new GeneLSTM(10, {
                 PROBABILITY_MUTATE_READOUT_W: 1.0,
+                PROBABILITY_MUTATE_ADD_UNIT: 0,
                 MUTATION_RATE: 1.0,
             });
 

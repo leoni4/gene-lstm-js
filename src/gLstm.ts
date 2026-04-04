@@ -3,7 +3,7 @@ import { Species } from './species.js';
 import { Genome } from './genome.js';
 import { RandomSelector } from './randomSelector.js';
 
-import type { GeneOptions, SleepingBlockConfig, SeqInput } from './types/index.js';
+import type { GeneOptions, SleepingBlockConfig, SeqInput, GeneLSTMOptions } from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST, IGlstmFitOptions, IGlstmFitHistory } from './types/index.js';
 import { computeLoss, isY2D, mean, variance } from './helpers/index.js';
 
@@ -82,46 +82,6 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
 
         verbose: options?.verbose ?? 0,
     };
-}
-
-interface GeneLSTMOptions {
-    CP?: number;
-    C1?: number;
-    C2?: number;
-    INPUT_FEATURES?: number;
-    SURVIVORS?: number;
-    MUTATION_RATE?: number;
-    BIAS_SHIFT_STRENGTH?: number;
-    BIAS_RANDOM_STRENGTH?: number;
-    ALPHA_SHIFT_STRENGTH?: number;
-    PROBABILITY_MUTATE_BIAS_SHIFT?: number;
-    PROBABILITY_MUTATE_BIAS_RANDOM?: number;
-    WEIGHT_SHIFT_STRENGTH?: number;
-    WEIGHT_RANDOM_STRENGTH?: number;
-    PROBABILITY_MUTATE_ALPHA_SHIFT?: number;
-    PROBABILITY_MUTATE_WEIGHT_SHIFT?: number;
-    PROBABILITY_MUTATE_WEIGHT_RANDOM?: number;
-    PROBABILITY_MUTATE_LSTM_BLOCK?: number;
-    PROBABILITY_ADD_BLOCK_APPEND?: number;
-    PROBABILITY_REMOVE_BLOCK?: number;
-    PROBABILITY_MUTATE_ADD_UNIT?: number;
-    PROBABILITY_MUTATE_REMOVE_UNIT?: number;
-    PROBABILITY_MUTATE_READOUT_W?: number;
-    PROBABILITY_MUTATE_READOUT_B?: number;
-    sleepingBlockConfig?: Partial<SleepingBlockConfig>;
-    loadData?: GeneOptions;
-    // Dynamic CP adjustment parameters
-    targetSpecies?: number;
-    cpAdjustRate?: number;
-    cpDeadband?: number;
-    minCP?: number;
-    maxCP?: number;
-    // Mutation pressure parameters
-    mutationPressure?: EMutationPressure;
-    enablePressureEscalation?: boolean;
-    stagnationThreshold?: number;
-
-    verbose?: number;
 }
 
 export class GeneLSTM {

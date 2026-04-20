@@ -32,6 +32,8 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         C2: options?.C2 ?? 0.4,
 
         INPUT_FEATURES: options?.INPUT_FEATURES ?? 1,
+        OUTPUT_DIM: options?.OUTPUT_DIM ?? 1,
+        OUTPUT_ACTIVATION: options?.OUTPUT_ACTIVATION ?? 'sigmoid',
 
         SURVIVORS: options?.SURVIVORS ?? 0.6,
         MUTATION_RATE: options?.MUTATION_RATE ?? 1,
@@ -89,6 +91,8 @@ export class GeneLSTM {
     private _species: Species[] = [];
     private _maxClients: number;
     private _INPUT_FEATURES: number;
+    private _OUTPUT_DIM: number;
+    private _OUTPUT_ACTIVATION: 'sigmoid' | 'tanh' | 'identity';
 
     private _CP: number;
     private _C1: number;
@@ -173,6 +177,8 @@ export class GeneLSTM {
         this._C2 = o.C2;
 
         this._INPUT_FEATURES = o.INPUT_FEATURES;
+        this._OUTPUT_DIM = o.OUTPUT_DIM;
+        this._OUTPUT_ACTIVATION = o.OUTPUT_ACTIVATION;
 
         this._SURVIVORS = o.SURVIVORS;
         this._MUTATION_RATE = o.MUTATION_RATE;
@@ -218,6 +224,14 @@ export class GeneLSTM {
 
     get INPUT_FEATURES() {
         return this._INPUT_FEATURES;
+    }
+
+    get OUTPUT_DIM() {
+        return this._OUTPUT_DIM;
+    }
+
+    get OUTPUT_ACTIVATION() {
+        return this._OUTPUT_ACTIVATION;
     }
 
     get CP() {

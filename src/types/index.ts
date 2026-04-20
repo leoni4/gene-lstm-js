@@ -41,10 +41,12 @@ export type LstmOptions = {
     potentialLongMemory: GateUnitOptions[];
     shortMemoryToRemember: GateUnitOptions[];
 
-    readoutW: number[];
-    readoutB: number;
+    readoutW: number[] | number[][];
+    readoutB: number | number[];
 
     alpha: number;
+    outputDim?: number;
+    outputActivation?: 'sigmoid' | 'tanh' | 'identity';
 };
 
 export type GeneOptions = LstmOptions[];
@@ -95,6 +97,8 @@ export interface GeneLSTMOptions {
     C1?: number;
     C2?: number;
     INPUT_FEATURES?: number;
+    OUTPUT_DIM?: number;
+    OUTPUT_ACTIVATION?: 'sigmoid' | 'tanh' | 'identity';
     SURVIVORS?: number;
     MUTATION_RATE?: number;
     BIAS_SHIFT_STRENGTH?: number;

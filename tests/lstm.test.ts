@@ -141,8 +141,9 @@ describe('LSTM', () => {
             const lstm = new LSTM(geneLstm, options);
 
             expect(lstm.alpha).toBe(0.9);
-            expect(lstm.readoutW).toEqual([0.5, 0.3]);
-            expect(lstm.readoutB).toBe(0.1);
+            // Old format is converted to new format
+            expect(lstm.readoutW).toEqual([[0.5, 0.3]]);
+            expect(lstm.readoutB).toEqual([0.1]);
         });
 
         it('should handle weightIn in gate options', () => {
@@ -309,7 +310,7 @@ describe('LSTM', () => {
             const lstm2 = new LSTM(geneLstm, model);
 
             expect(lstm2.alpha).toBe(lstm1.alpha);
-            expect(lstm2.readoutB).toBe(lstm1.readoutB);
+            expect(lstm2.readoutB).toEqual(lstm1.readoutB);
         });
     });
 
@@ -346,11 +347,11 @@ describe('LSTM', () => {
             });
 
             const lstm = new LSTM(glstmHighAdd);
-            const sizeBefore = lstm.readoutW.length;
+            const sizeBefore = lstm.readoutW[0].length;
 
             lstm.mutate();
 
-            expect(lstm.readoutW.length).toBeGreaterThan(sizeBefore);
+            expect(lstm.readoutW[0].length).toBeGreaterThan(sizeBefore);
         });
 
         it('should remove units with high remove probability', () => {
@@ -437,7 +438,8 @@ describe('LSTM', () => {
 
             lstm.mutate();
 
-            expect(typeof lstm.readoutB).toBe('number');
+            expect(Array.isArray(lstm.readoutB)).toBe(true);
+            expect(lstm.readoutB.length).toBeGreaterThan(0);
         });
 
         it('should mutate alpha', () => {

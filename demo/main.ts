@@ -1,6 +1,8 @@
 import { GeneLSTM } from '../src/gLstm.js';
 import {
     lastBit,
+    binaryDecomposition,
+    sequenceMultiTask,
     testLstmSineNext01,
     testLstmAdding01,
     testLstmParity01,
@@ -23,48 +25,70 @@ const problems = {
     lastBit: {
         build: () => lastBit.build(),
         inputFeatures: 1,
+        outputDim: 1,
         description:
             '<strong>Last Bit:</strong> Learn to output the last bit of a 4-bit binary sequence. Simple memory task with 16 samples. Perfect for quick testing.',
+    },
+    binaryDecomposition: {
+        build: () => binaryDecomposition.build(),
+        inputFeatures: 1,
+        outputDim: 2,
+        description:
+            '<strong>Binary Decomposition (Multi-Output):</strong> Outputs [lastBit, firstBit] for a 4-bit sequence. Demonstrates multi-output capability with 2 outputs. 16 samples.',
+    },
+    sequenceMultiTask: {
+        build: () => sequenceMultiTask.build(),
+        inputFeatures: 1,
+        outputDim: 3,
+        description:
+            '<strong>Sequence Multi-Task (Multi-Output):</strong> Outputs [sum>3, lastBit, parity] for 6-bit sequences. Tests simultaneous learning of 3 different patterns. 200 samples.',
     },
     sineNext: {
         build: () => testLstmSineNext01.build(),
         inputFeatures: 1,
+        outputDim: 1,
         description:
             '<strong>Sine Wave Prediction:</strong> Predict the next value in a sine wave sequence. Tests the ability to learn periodic patterns. 512 samples, sequence length 20.',
     },
     adding: {
         build: () => testLstmAdding01.build(),
         inputFeatures: 2,
+        outputDim: 1,
         description:
             '<strong>Adding Task:</strong> Add two marked values in a sequence of random numbers. Classic LSTM benchmark testing long-term dependencies. 2048 samples, sequence length 40.',
     },
     parity: {
         build: () => testLstmParity01.build(),
         inputFeatures: 1,
+        outputDim: 1,
         description:
             '<strong>Parity Check:</strong> Calculate XOR (parity) of a binary sequence. Tests sequential logic and memory. 2048 samples, sequence length 32.',
     },
     trend: {
         build: () => testLstmTrend01.build(),
         inputFeatures: 1,
+        outputDim: 1,
         description:
             '<strong>Trend Detection:</strong> Determine if a noisy time series is trending up or down. Tests pattern recognition in noisy data. 3000 samples, sequence length 30.',
     },
     waveMix: {
         build: () => testLstmWaveMix01.build(),
         inputFeatures: 1,
+        outputDim: 1,
         description:
             '<strong>Wave Mix Prediction:</strong> Predict next value in a complex wave formed by mixing multiple sine waves. Tests learning of complex periodic patterns. 2048 samples, sequence length 25.',
     },
     hierarchicalMajority: {
         build: () => testHierarchicalSegmentMajorityAdd.build(),
         inputFeatures: 3,
+        outputDim: 1,
         description:
             '<strong>Hierarchical Majority:</strong> Segment-wise majority voting with hierarchical structure. Each segment has marked values to add; output is 1 if majority of segments exceed threshold. Tests hierarchical reasoning. 512 samples, 4 segments of 5 timesteps each.',
     },
     hierarchicalXor: {
         build: () => testHierarchicalSegmentXorAdd.build(),
         inputFeatures: 3,
+        outputDim: 1,
         description:
             '<strong>Hierarchical XOR:</strong> Segment-wise XOR parity with hierarchical structure. Each segment has marked values; compute local parity then global XOR. Tests hierarchical logic. 512 samples, 4 segments of 5 timesteps each.',
     },
@@ -134,11 +158,17 @@ function createBlockCard(lstm: LstmOptions, index: number): HTMLDivElement {
     card.className = 'block-card';
     card.dataset.index = String(index);
 
-    const readoutPreview = lstm.readoutW
+    // Handle multi-output: readoutW is now number[][]
+    const readoutW = lstm.readoutW as number[][];
+    const outputDim = readoutW.length;
+    const firstOutputWeights = readoutW[0] || [];
+
+    const readoutPreview = firstOutputWeights
         .slice(0, 6)
         .map(w => w.toFixed(2))
         .join(', ');
-    const readoutSuffix = lstm.readoutW.length > 6 ? '...' : '';
+    const readoutSuffix = firstOutputWeights.length > 6 ? '...' : '';
+    const outputLabel = outputDim > 1 ? ` (${outputDim} outputs)` : '';
 
     card.innerHTML = `
         <div class="block-header">
@@ -153,7 +183,7 @@ function createBlockCard(lstm: LstmOptions, index: number): HTMLDivElement {
             <span class="block-info-value">${lstm.alpha.toFixed(3)}</span>
         </div>
         <div class="readout-preview">
-            <div class="block-info-label">ReadoutW:</div>
+            <div class="block-info-label">ReadoutW${outputLabel}:</div>
             <div class="readout-weights">${readoutPreview}${readoutSuffix}</div>
         </div>
     `;
@@ -172,13 +202,19 @@ function showBlockDetails(lstm: LstmOptions, index: number) {
     detailsTitle.textContent = `Block ${index} - Detailed View`;
     detailsContent.innerHTML = '';
 
-    // ReadoutW Bar Chart
-    const barSection = document.createElement('div');
-    barSection.className = 'bar-chart-section';
-    barSection.innerHTML = '<h4>Readout Weights</h4>';
-    const barChart = renderBarChart(lstm.readoutW);
-    barSection.appendChild(barChart);
-    detailsContent.appendChild(barSection);
+    // ReadoutW Bar Charts (handle multi-output)
+    const readoutW = lstm.readoutW as number[][];
+    const outputDim = readoutW.length;
+
+    for (let outIdx = 0; outIdx < outputDim; outIdx++) {
+        const barSection = document.createElement('div');
+        barSection.className = 'bar-chart-section';
+        const outputLabel = outputDim > 1 ? ` (Output ${outIdx})` : '';
+        barSection.innerHTML = `<h4>Readout Weights${outputLabel}</h4>`;
+        const barChart = renderBarChart(readoutW[outIdx]);
+        barSection.appendChild(barChart);
+        detailsContent.appendChild(barSection);
+    }
 
     // Gate Heatmaps
     const gates = [
@@ -345,10 +381,12 @@ async function trainModel() {
 
     log(`Starting training (max ${maxEpochs} epochs, threshold: ${errorThreshold})`, 'info');
 
-    // Initialize GeneLSTM with correct INPUT_FEATURES for current problem
+    // Initialize GeneLSTM with correct INPUT_FEATURES and OUTPUT_DIM for current problem
     const inputFeatures = problems[currentProblem].inputFeatures;
+    const outputDim = problems[currentProblem].outputDim;
     glstm = new GeneLSTM(250, {
         INPUT_FEATURES: inputFeatures,
+        OUTPUT_DIM: outputDim,
         verbose: 0,
     });
 
@@ -371,11 +409,20 @@ async function trainModel() {
                 }
                 const input = dataset.inputs[i];
                 const target = dataset.outputs[i];
-                const prediction = client.calculate(input)[0];
+                const prediction = client.calculate(input);
 
-                // MAE loss
-                const error = Math.abs(prediction - target);
-                totalError += error;
+                // MAE loss (handle both single and multi-output)
+                if (Array.isArray(target)) {
+                    // Multi-output: compute error across all outputs
+                    let sampleError = 0;
+                    for (let j = 0; j < outputDim; j++) {
+                        sampleError += Math.abs(prediction[j] - target[j]);
+                    }
+                    totalError += sampleError / outputDim; // Average per output
+                } else {
+                    // Single output
+                    totalError += Math.abs(prediction[0] - target);
+                }
             }
 
             const avgError = totalError / dataset.inputs.length;

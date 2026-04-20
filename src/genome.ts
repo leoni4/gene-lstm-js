@@ -78,6 +78,7 @@ export class Genome {
         const randSmall = () => Math.random() * 2 * eps - eps;
 
         const inputN = this._glstm.INPUT_FEATURES || 1;
+        const outputDim = this._glstm.OUTPUT_DIM || 1;
 
         const makeUnit = (bias: number): GateUnitOptions => ({
             weight1: randSmall(),
@@ -96,11 +97,13 @@ export class Genome {
             potentialLongMemory: new Array(H).fill(0).map(() => makeUnit(cfg.candidateBias)),
             shortMemoryToRemember: new Array(H).fill(0).map(() => makeUnit(cfg.outputBias)),
 
-            // new unit should initially have ~0 influence on final output
-            readoutW: new Array(H).fill(0),
-            readoutB: 0,
+            // Multi-output: new unit should initially have ~0 influence on final output
+            readoutW: new Array(outputDim).fill(0).map(() => new Array(H).fill(0)),
+            readoutB: new Array(outputDim).fill(0),
 
             alpha: cfg.initialAlpha,
+            outputDim,
+            outputActivation: this._glstm.OUTPUT_ACTIVATION,
         };
 
         return new LSTM(this._glstm, options);
@@ -226,12 +229,36 @@ export class Genome {
                     return out;
                 };
 
-                const readoutW: number[] = new Array(H);
-                for (let k = 0; k < H; k++) {
-                    const wa = a.readoutW?.[k];
-                    const wb = b.readoutW?.[k];
-                    readoutW[k] =
-                        wa !== undefined && wb !== undefined ? (Math.random() < 0.5 ? wa : wb) : (wa ?? wb ?? 0);
+                // Cross readout weights (multi-output support)
+                const aReadoutW = a.readoutW as number[][];
+                const bReadoutW = b.readoutW as number[][];
+                const aReadoutB = a.readoutB as number[];
+                const bReadoutB = b.readoutB as number[];
+
+                const outputDim = Math.max(aReadoutW?.length ?? 1, bReadoutW?.length ?? 1);
+                const readoutW: number[][] = [];
+
+                for (let j = 0; j < outputDim; j++) {
+                    const rowA = aReadoutW?.[j];
+                    const rowB = bReadoutW?.[j];
+                    const row: number[] = new Array(H);
+
+                    for (let k = 0; k < H; k++) {
+                        const wa = rowA?.[k];
+                        const wb = rowB?.[k];
+                        row[k] =
+                            wa !== undefined && wb !== undefined ? (Math.random() < 0.5 ? wa : wb) : (wa ?? wb ?? 0);
+                    }
+                    readoutW.push(row);
+                }
+
+                const readoutB: number[] = [];
+                for (let j = 0; j < outputDim; j++) {
+                    const ba = aReadoutB?.[j];
+                    const bb = bReadoutB?.[j];
+                    readoutB.push(
+                        ba !== undefined && bb !== undefined ? (Math.random() < 0.5 ? ba : bb) : (ba ?? bb ?? 0),
+                    );
                 }
 
                 geneOptions.push({
@@ -243,7 +270,7 @@ export class Genome {
                     shortMemoryToRemember: crossGateArray(a.shortMemoryToRemember, b.shortMemoryToRemember),
 
                     readoutW,
-                    readoutB: Math.random() < 0.5 ? (a.readoutB ?? 0) : (b.readoutB ?? 0),
+                    readoutB,
 
                     alpha: Math.random() < 0.5 ? a.alpha : b.alpha,
                 });

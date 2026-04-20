@@ -363,3 +363,82 @@ export const lastBit = {
         };
     },
 };
+
+/**
+ * Multi-output example 1: Binary Decomposition
+ * Outputs [lastBit, firstBit] for a 4-bit sequence
+ */
+export const binaryDecomposition = {
+    build() {
+        return {
+            inputs: [
+                [0, 0, 0, 0],
+                [0, 0, 0, 1],
+                [0, 0, 1, 0],
+                [0, 0, 1, 1],
+                [0, 1, 0, 0],
+                [0, 1, 0, 1],
+                [0, 1, 1, 0],
+                [0, 1, 1, 1],
+                [1, 0, 0, 0],
+                [1, 0, 0, 1],
+                [1, 0, 1, 0],
+                [1, 0, 1, 1],
+                [1, 1, 0, 0],
+                [1, 1, 0, 1],
+                [1, 1, 1, 0],
+                [1, 1, 1, 1],
+            ],
+            outputs: [
+                [0, 0], // last=0, first=0
+                [1, 0], // last=1, first=0
+                [0, 0],
+                [1, 0],
+                [0, 0],
+                [1, 0],
+                [0, 0],
+                [1, 0],
+                [0, 1], // last=0, first=1
+                [1, 1], // last=1, first=1
+                [0, 1],
+                [1, 1],
+                [0, 1],
+                [1, 1],
+                [0, 1],
+                [1, 1],
+            ],
+        };
+    },
+};
+
+/**
+ * Multi-output example 2: Sequence Multi-Task
+ * Outputs [sum>3, lastBit, parity] for 6-bit sequences
+ */
+export const sequenceMultiTask = {
+    build({ samples = 200 } = {}) {
+        const inputs: number[][] = [];
+        const outputs: number[][] = [];
+
+        for (let i = 0; i < samples; i++) {
+            const seq: number[] = [];
+            let sum = 0;
+            let parity = 0;
+
+            for (let j = 0; j < 6; j++) {
+                const bit = Math.random() < 0.5 ? 0 : 1;
+                seq.push(bit);
+                sum += bit;
+                parity ^= bit;
+            }
+
+            const lastBit = seq[5];
+            const sumOver3 = sum > 3 ? 1 : 0;
+
+            inputs.push(seq);
+            outputs.push([sumOver3, lastBit, parity]);
+        }
+
+        return { inputs, outputs };
+    },
+};

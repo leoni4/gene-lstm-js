@@ -81,6 +81,7 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         stagnationThreshold: options?.stagnationThreshold ?? 15,
 
         loadData: options?.loadData,
+        loadPercent: options?.loadPercent || 0.5,
 
         verbose: options?.verbose ?? 0,
     };
@@ -219,7 +220,7 @@ export class GeneLSTM {
 
         this._verbose = o.verbose;
 
-        this._init(o.loadData);
+        this._init(o.loadData, o.loadPercent);
     }
 
     get INPUT_FEATURES() {
@@ -339,16 +340,24 @@ export class GeneLSTM {
         return new Genome(this, data);
     }
 
-    private _init(data?: GeneOptions) {
+    private _init(data?: GeneOptions, loadPercent?: number) {
         let genome: Genome;
+        const emptyGenome = this.emptyGenome();
+
         if (data) {
             genome = this._initGenome(data);
         } else {
-            genome = this.emptyGenome();
+            genome = emptyGenome;
+        }
+
+        function getGenome(): Genome {
+            if (data && loadPercent && Math.random() < loadPercent) return genome;
+
+            return emptyGenome;
         }
         this._clients = [];
         for (let i = 0; i < this._maxClients; i += 1) {
-            const c: Client = new Client(genome);
+            const c: Client = new Client(getGenome());
             if (i === 0) {
                 this._species.push(new Species(c));
             } else {

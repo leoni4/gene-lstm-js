@@ -95,6 +95,8 @@ describe('Non-Destructive Structural Mutations', () => {
                     alpha: 0.5,
                 },
             ],
+
+            loadPercent: 1,
         });
 
         const client = glstm.clients[0];

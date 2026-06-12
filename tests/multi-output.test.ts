@@ -221,6 +221,7 @@ describe('Multi-Output Support', () => {
 
             const glstm = new GeneLSTM(10, {
                 loadData: oldModel,
+                loadPercent: 1,
             });
 
             const client = glstm.clients[0];

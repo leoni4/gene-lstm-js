@@ -43,7 +43,7 @@ describe('GeneLSTM', () => {
                 },
             ];
 
-            const glstm = new GeneLSTM(5, { loadData });
+            const glstm = new GeneLSTM(5, { loadData, loadPercent: 1 });
 
             expect(glstm.clients).toHaveLength(5);
             expect(glstm.clients[0].genome.lstmArray[0].alpha).toBe(0.9);

@@ -120,6 +120,7 @@ export interface GeneLSTMOptions {
     PROBABILITY_MUTATE_READOUT_B?: number;
     sleepingBlockConfig?: Partial<SleepingBlockConfig>;
     loadData?: GeneOptions;
+    loadPercent?: number;
     // Dynamic CP adjustment parameters
     targetSpecies?: number;
     cpAdjustRate?: number;

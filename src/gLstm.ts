@@ -350,14 +350,14 @@ export class GeneLSTM {
             genome = emptyGenome;
         }
 
-        function getGenome(): Genome {
-            if (data && loadPercent && Math.random() < loadPercent) return genome;
+        function getGenome(ptc: number): Genome {
+            if (data && loadPercent && ptc < loadPercent) return genome;
 
             return emptyGenome;
         }
         this._clients = [];
         for (let i = 0; i < this._maxClients; i += 1) {
-            const c: Client = new Client(getGenome());
+            const c: Client = new Client(getGenome(i/this._maxClients));
             if (i === 0) {
                 this._species.push(new Species(c));
             } else {

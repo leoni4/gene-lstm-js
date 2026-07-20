@@ -38,6 +38,12 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         SURVIVORS: options?.SURVIVORS ?? 0.6,
         MUTATION_RATE: options?.MUTATION_RATE ?? 1,
 
+        OPT_ERR_THRESHOLD: options?.OPT_ERR_THRESHOLD ?? 0.005,
+        OPTIMIZATION_PERIOD: options?.OPTIMIZATION_PERIOD ?? 10,
+        LAMBDA_HIGH: options?.LAMBDA_HIGH ?? 0.1,
+        LAMBDA_LOW: options?.LAMBDA_LOW ?? 0.01,
+        EPS: options?.EPS ?? 1e-6,
+
         BIAS_SHIFT_STRENGTH: options?.BIAS_SHIFT_STRENGTH ?? 0.2,
         BIAS_RANDOM_STRENGTH: options?.BIAS_RANDOM_STRENGTH ?? 1.0,
         WEIGHT_SHIFT_STRENGTH: options?.WEIGHT_SHIFT_STRENGTH ?? 0.2,
@@ -102,6 +108,12 @@ export class GeneLSTM {
     private _SURVIVORS: number;
     private _MUTATION_RATE: number;
 
+    private _OPT_ERR_THRESHOLD: number;
+    private _OPTIMIZATION_PERIOD: number;
+    private _LAMBDA_HIGH: number;
+    private _LAMBDA_LOW: number;
+    private _EPS: number;
+
     private _BIAS_SHIFT_STRENGTH: number;
     private _BIAS_RANDOM_STRENGTH: number;
     private _ALPHA_SHIFT_STRENGTH: number;
@@ -136,7 +148,7 @@ export class GeneLSTM {
     private _enablePressureEscalation: boolean;
     private _stagnationThreshold: number;
     private _stagnationCounter = 0;
-    private _bestFitnessEver = 0;
+    private _bestFitnessEver = -Infinity;
     // --- Pressure tuning knobs ---
     private _pressureImprovementAbs = 1e-6; // minimal absolute improvement
     private _pressureImprovementRel = 1e-3; // relative improvement factor (0.1%)
@@ -147,19 +159,15 @@ export class GeneLSTM {
     private _panicCooldownCounter = 0;
     private _panicCooldownGenerations = 60; // after PANIC ends, forbid re-entering for a while
 
-    // Optional: per-level stagnation thresholds (instead of one global)
-    private _stagnationThresholdByPressure: Record<EMutationPressure, number> = {
-        [EMutationPressure.COMPACT]: 40,
-        [EMutationPressure.NORMAL]: 20,
-        [EMutationPressure.BOOST]: 40,
-        [EMutationPressure.ESCAPE]: 80,
-        [EMutationPressure.PANIC]: 999999, // not used for step-up (PANIC is max)
-    };
+    // Per-level stagnation thresholds, derived from stagnationThreshold.
+    private _stagnationThresholdByPressure: Record<EMutationPressure, number>;
 
     // Champion tracking parameters
     private _bestHistory: number[] = [];
     private _complexityHistory: number[] = [];
     private _champion: Client | null = null;
+    private _runnerUp: Client | null = null;
+
     private _championStagnationCount = 0;
     private _championStagnationThreshold = 10;
 
@@ -183,6 +191,12 @@ export class GeneLSTM {
 
         this._SURVIVORS = o.SURVIVORS;
         this._MUTATION_RATE = o.MUTATION_RATE;
+
+        this._OPT_ERR_THRESHOLD = Math.max(0, o.OPT_ERR_THRESHOLD);
+        this._OPTIMIZATION_PERIOD = Math.max(1, Math.floor(o.OPTIMIZATION_PERIOD));
+        this._LAMBDA_HIGH = Math.max(0, o.LAMBDA_HIGH);
+        this._LAMBDA_LOW = Math.max(0, o.LAMBDA_LOW);
+        this._EPS = Math.max(Number.EPSILON, o.EPS);
 
         this._BIAS_SHIFT_STRENGTH = o.BIAS_SHIFT_STRENGTH;
         this._BIAS_RANDOM_STRENGTH = o.BIAS_RANDOM_STRENGTH;
@@ -216,7 +230,14 @@ export class GeneLSTM {
 
         this._mutationPressure = o.mutationPressure;
         this._enablePressureEscalation = o.enablePressureEscalation;
-        this._stagnationThreshold = o.stagnationThreshold;
+        this._stagnationThreshold = Math.max(1, Math.floor(o.stagnationThreshold));
+        this._stagnationThresholdByPressure = {
+            [EMutationPressure.COMPACT]: Math.max(HISTORY_WINDOW + 1, this._stagnationThreshold * 2),
+            [EMutationPressure.NORMAL]: this._stagnationThreshold,
+            [EMutationPressure.BOOST]: this._stagnationThreshold * 2,
+            [EMutationPressure.ESCAPE]: this._stagnationThreshold * 4,
+            [EMutationPressure.PANIC]: Number.MAX_SAFE_INTEGER,
+        };
 
         this._verbose = o.verbose;
 
@@ -324,6 +345,10 @@ export class GeneLSTM {
         return this._champion;
     }
 
+    get runnerUp() {
+        return this._runnerUp;
+    }
+
     /**
      * Returns the current mutation pressure multipliers for topology and weights.
      * These are used to scale mutation probabilities and magnitudes throughout the system.
@@ -357,7 +382,7 @@ export class GeneLSTM {
         }
         this._clients = [];
         for (let i = 0; i < this._maxClients; i += 1) {
-            const c: Client = new Client(getGenome(i/this._maxClients));
+            const c: Client = new Client(getGenome(i / this._maxClients));
             if (i === 0) {
                 this._species.push(new Species(c));
             } else {
@@ -573,16 +598,28 @@ export class GeneLSTM {
 
             // ---- early stop ----
             if (bestError <= errorThreshold) {
+                // Capture final generation's real raw scores.
+                const finalRawBest = this._prepareRawScores();
+
+                this._updateChampion(finalRawBest);
+
+                // Also leave runnerUp in a valid final state.
+                this._normalizeScore();
+                this._updateRunnerUp(this._clients[0]);
+
                 history.stoppedEarly = true;
                 history.epochs = epoch;
-                history.champion = this._champion ?? bestClient;
+                history.champion = this._champion ?? finalRawBest;
 
-                if (verbose > 0) console.log(`✓ Training completed: error threshold reached at epoch ${epoch}`);
+                if (verbose > 0) {
+                    console.log(`✓ Training completed: error threshold reached at epoch ${epoch}`);
+                }
+
                 break;
             }
 
             // evolve
-            const shouldOptimize = bestError <= 0.02; // можно связать с твоим OPT_ERR_THRESHOLD
+            const shouldOptimize = bestError <= this._OPT_ERR_THRESHOLD;
             this.evolve(shouldOptimize);
 
             epoch++;
@@ -664,61 +701,25 @@ export class GeneLSTM {
         if (!this._enablePressureEscalation) {
             return;
         }
-        const canCompact =
-            this._bestHistory.length >= 2 &&
-            this._complexityHistory.length >= 2 &&
-            this._championStagnationCount > HISTORY_WINDOW;
-
-        if (canCompact) {
-            const scoreHist = this._bestHistory;
-            const compHist = this._complexityHistory;
-
-            const s0 = scoreHist[0];
-            const sBest = Math.max(...scoreHist);
-            const gain = sBest - s0;
-
-            const c0 = compHist[0];
-            const c1 = compHist[compHist.length - 1];
-            const growthAbs = c1 - c0;
-            const denom = Math.max(c0, COMPLEXITY_RATIO_DENOM_FLOOR);
-            const growthRatio = growthAbs / denom;
-
-            const growingMeaningfully = growthAbs >= COMPLEXITY_GROWTH_ABS || growthRatio >= COMPLEXITY_GROWTH_RATIO;
-
-            const tinyProgress = gain <= SMALL_GAIN_THRESHOLD;
-
-            if (growingMeaningfully && tinyProgress) {
-                if (this._mutationPressure !== EMutationPressure.COMPACT) {
-                    const old = this._mutationPressure;
-                    this._mutationPressure = EMutationPressure.COMPACT;
-
-                    if (this._verbose === 2) {
-                        console.log(
-                            `[Gen ${this._evolveCounts}] Mutation Pressure: ${old} → COMPACT (gain=${gain.toFixed(4)}, complexity ${c0.toFixed(2)}→${c1.toFixed(2)})`,
-                        );
-                    }
-                }
-            }
-        }
 
         if (this._panicCooldownCounter > 0) {
             this._panicCooldownCounter--;
         }
+
         if (this._mutationPressure === EMutationPressure.PANIC) {
             this._panicCounter++;
 
             if (this._panicCounter >= this._panicMaxGenerations) {
-                // Force exit PANIC even without improvement
                 const oldPressure = this._mutationPressure;
                 this._mutationPressure = EMutationPressure.ESCAPE;
-
                 this._panicCounter = 0;
-                this._stagnationCounter = 0; // reset stagnation when forcing down
+                this._stagnationCounter = 0;
                 this._panicCooldownCounter = this._panicCooldownGenerations;
 
                 if (generation !== undefined && this._verbose === 2) {
                     console.log(
-                        `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} (PANIC timeout ${this._panicMaxGenerations} gens, cooldown ${this._panicCooldownGenerations} gens)`,
+                        `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} ` +
+                            `(PANIC timeout ${this._panicMaxGenerations} gens, cooldown ${this._panicCooldownGenerations} gens)`,
                     );
                 }
 
@@ -726,116 +727,225 @@ export class GeneLSTM {
             }
         }
 
-        // Abs + relative threshold: makes improvement detection stable for different fitness scales
-        const improvementThreshold = Math.max(
-            this._pressureImprovementAbs,
-            Math.abs(this._bestFitnessEver) * this._pressureImprovementRel,
-        );
+        const firstObservation = !Number.isFinite(this._bestFitnessEver);
+        const improvementThreshold = firstObservation
+            ? 0
+            : Math.max(this._pressureImprovementAbs, Math.abs(this._bestFitnessEver) * this._pressureImprovementRel);
 
-        const hasImproved = currentBestFitness > this._bestFitnessEver + improvementThreshold;
+        const hasImproved = firstObservation || currentBestFitness > this._bestFitnessEver + improvementThreshold;
+
         if (hasImproved) {
-            // Fitness improved - reset stagnation and gradually reduce pressure
+            const oldPressure = this._mutationPressure;
+
             this._bestFitnessEver = currentBestFitness;
             this._stagnationCounter = 0;
-
-            // If we improved, clear panic tracking (we don't want to be stuck in panic mode)
             this._panicCounter = 0;
-            // Optionally shorten cooldown because progress resumed:
-            if (this._panicCooldownCounter > 0)
-                this._panicCooldownCounter = Math.floor(this._panicCooldownCounter * 0.5);
 
-            // Gradually reduce pressure if above NORMAL
-            const pressureLevels = [
-                EMutationPressure.PANIC,
-                EMutationPressure.ESCAPE,
-                EMutationPressure.BOOST,
-                EMutationPressure.NORMAL,
-            ];
-            let currentIndex = pressureLevels.indexOf(this._mutationPressure);
-            if (currentIndex === -1) {
-                this._mutationPressure = EMutationPressure.NORMAL;
-                currentIndex = pressureLevels.indexOf(this._mutationPressure);
+            if (this._panicCooldownCounter > 0) {
+                this._panicCooldownCounter = Math.floor(this._panicCooldownCounter * 0.5);
             }
 
-            if (currentIndex < pressureLevels.length - 1) {
-                // Move one level down towards NORMAL
-                this._mutationPressure = pressureLevels[currentIndex + 1];
-                if (generation !== undefined && this._verbose === 2) {
+            if (this._mutationPressure === EMutationPressure.COMPACT) {
+                this._mutationPressure = EMutationPressure.NORMAL;
+            } else {
+                const pressureLevels = [
+                    EMutationPressure.PANIC,
+                    EMutationPressure.ESCAPE,
+                    EMutationPressure.BOOST,
+                    EMutationPressure.NORMAL,
+                ];
+                const currentIndex = pressureLevels.indexOf(this._mutationPressure);
+
+                if (currentIndex >= 0 && currentIndex < pressureLevels.length - 1) {
+                    this._mutationPressure = pressureLevels[currentIndex + 1];
+                }
+            }
+
+            if (generation !== undefined && this._verbose === 2 && oldPressure !== this._mutationPressure) {
+                console.log(
+                    `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} ` +
+                        `(fitness improved to ${currentBestFitness.toFixed(6)})`,
+                );
+            }
+
+            return;
+        }
+
+        this._stagnationCounter++;
+
+        const canCompact =
+            this._stagnationCounter > HISTORY_WINDOW &&
+            this._bestHistory.length >= 2 &&
+            this._complexityHistory.length >= 2;
+
+        if (canCompact) {
+            const s0 = this._bestHistory[0];
+            const sBest = Math.max(...this._bestHistory);
+            const gain = sBest - s0;
+
+            const c0 = this._complexityHistory[0];
+            const c1 = this._complexityHistory[this._complexityHistory.length - 1];
+            const growthAbs = c1 - c0;
+            const denom = Math.max(c0, COMPLEXITY_RATIO_DENOM_FLOOR);
+            const growthRatio = growthAbs / denom;
+
+            const growingMeaningfully = growthAbs >= COMPLEXITY_GROWTH_ABS || growthRatio >= COMPLEXITY_GROWTH_RATIO;
+            const tinyProgress = gain <= SMALL_GAIN_THRESHOLD;
+
+            if (growingMeaningfully && tinyProgress) {
+                const oldPressure = this._mutationPressure;
+                this._mutationPressure = EMutationPressure.COMPACT;
+                this._optimization = true;
+
+                if (generation !== undefined && this._verbose === 2 && oldPressure !== this._mutationPressure) {
                     console.log(
-                        `[Gen ${generation}] Mutation Pressure: ${pressureLevels[currentIndex]} → ${this._mutationPressure} (fitness improved to ${currentBestFitness.toFixed(4)})`,
+                        `[Gen ${generation}] Mutation Pressure: ${oldPressure} → COMPACT ` +
+                            `(gain=${gain.toFixed(6)}, complexity ${c0.toFixed(2)}→${c1.toFixed(2)})`,
                     );
                 }
-            }
-        } else {
-            this._stagnationCounter++;
 
-            // Use per-level stagnation threshold (more patient as pressure increases)
-            const levelThreshold =
-                this._stagnationThresholdByPressure?.[this._mutationPressure] ?? this._stagnationThreshold;
-
-            if (this._stagnationCounter >= levelThreshold) {
-                const pressureLevels = [
-                    EMutationPressure.NORMAL,
-                    EMutationPressure.BOOST,
-                    EMutationPressure.ESCAPE,
-                    EMutationPressure.PANIC,
-                ];
-
-                let currentIndex = pressureLevels.indexOf(this._mutationPressure);
-                if (currentIndex === -1) {
-                    this._mutationPressure = EMutationPressure.NORMAL;
-                    currentIndex = pressureLevels.indexOf(this._mutationPressure);
-                }
-
-                // If PANIC is on cooldown, do not escalate into PANIC
-                const nextPressure = pressureLevels[currentIndex + 1];
-                const panicBlocked = nextPressure === EMutationPressure.PANIC && this._panicCooldownCounter > 0;
-
-                if (currentIndex < pressureLevels.length - 1 && !panicBlocked) {
-                    const oldPressure = this._mutationPressure;
-                    this._mutationPressure = nextPressure;
-                    this._stagnationCounter = 0; // Reset counter after escalation
-
-                    // entering panic: reset panic counter
-                    if (this._mutationPressure === EMutationPressure.PANIC) {
-                        this._panicCounter = 0;
-                    }
-
-                    if (generation !== undefined && this._verbose === 2) {
-                        console.log(
-                            `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} (stagnated for ${levelThreshold} generations, best: ${this._bestFitnessEver.toFixed(4)})`,
-                        );
-                    }
-                } else {
-                    // If we could not escalate (max or panic blocked), you may still want to reset counter to avoid spam
-                    this._stagnationCounter = 0;
-
-                    if (generation !== undefined && panicBlocked && this._verbose === 2) {
-                        console.log(
-                            `[Gen ${generation}] Mutation Pressure: ${this._mutationPressure} (PANIC blocked by cooldown ${this._panicCooldownCounter} gens)`,
-                        );
-                    }
-                }
+                return;
             }
         }
+
+        if (this._mutationPressure === EMutationPressure.COMPACT) {
+            this._mutationPressure = EMutationPressure.NORMAL;
+        }
+
+        const levelThreshold = this._stagnationThresholdByPressure[this._mutationPressure] ?? this._stagnationThreshold;
+
+        if (this._stagnationCounter < levelThreshold) {
+            return;
+        }
+
+        const pressureLevels = [
+            EMutationPressure.NORMAL,
+            EMutationPressure.BOOST,
+            EMutationPressure.ESCAPE,
+            EMutationPressure.PANIC,
+        ];
+        const currentIndex = pressureLevels.indexOf(this._mutationPressure);
+
+        if (currentIndex < 0 || currentIndex >= pressureLevels.length - 1) {
+            this._stagnationCounter = 0;
+
+            return;
+        }
+
+        const nextPressure = pressureLevels[currentIndex + 1];
+        const panicBlocked = nextPressure === EMutationPressure.PANIC && this._panicCooldownCounter > 0;
+
+        if (panicBlocked) {
+            this._stagnationCounter = 0;
+
+            if (generation !== undefined && this._verbose === 2) {
+                console.log(
+                    `[Gen ${generation}] Mutation Pressure: ${this._mutationPressure} ` +
+                        `(PANIC blocked by cooldown ${this._panicCooldownCounter} gens)`,
+                );
+            }
+
+            return;
+        }
+
+        const oldPressure = this._mutationPressure;
+        this._mutationPressure = nextPressure;
+        this._stagnationCounter = 0;
+
+        if (this._mutationPressure === EMutationPressure.PANIC) {
+            this._panicCounter = 0;
+        }
+
+        if (generation !== undefined && this._verbose === 2) {
+            console.log(
+                `[Gen ${generation}] Mutation Pressure: ${oldPressure} → ${this._mutationPressure} ` +
+                    `(stagnated for ${levelThreshold} generations, best: ${this._bestFitnessEver.toFixed(6)})`,
+            );
+        }
+    }
+    private _markBestRawClient(): Client {
+        if (this._clients.length === 0) {
+            throw new Error('Cannot select the best client from an empty population');
+        }
+
+        let bestClient = this._clients[0];
+
+        for (const client of this._clients) {
+            client.bestScore = false;
+
+            // Strict raw-fitness comparison.
+            // Complexity, EPS and adjusted score do not participate.
+            if (client.scoreRaw > bestClient.scoreRaw) {
+                bestClient = client;
+            }
+        }
+
+        bestClient.bestScore = true;
+
+        return bestClient;
+    }
+
+    private _prepareRawScores(): Client {
+        if (this._clients.length === 0) {
+            throw new Error('Cannot prepare scores for an empty population');
+        }
+
+        for (const client of this._clients) {
+            if (!Number.isFinite(client.score)) {
+                throw new Error(`Client has a non-finite score: ${client.score}`);
+            }
+
+            // tiny tie-breaker noise (important on flat landscapes)
+            client.score += Math.random() * 1e-9;
+
+            // client.score is the fitness assigned by fit()
+            // or by an external/manual evaluation loop.
+            client.scoreRaw = client.score;
+            client.adjustedScore = client.scoreRaw;
+            client.complexity = this._calcClientComplexity(client).complexity;
+        }
+
+        return this._markBestRawClient();
     }
 
     evolve(optimization = false) {
         this._evolveCounts++;
-        this._optimization = optimization || this._evolveCounts % 10 === 0;
-        this._updateChampion();
 
-        if (this._enablePressureEscalation && this._clients.length > 0) {
-            const bestClient = this._clients[0]; // Already sorted by score in _normalizeScore
-            const currentBestScore = bestClient.score;
-            this.updateMutationPressure(currentBestScore, this._evolveCounts);
+        this._optimization = optimization || this._evolveCounts % this._OPTIMIZATION_PERIOD === 0;
+
+        if (this._clients.length === 0) {
+            return;
         }
 
+        // 1. Capture externally assigned objective fitness.
+        const currentRawBest = this._prepareRawScores();
+
+        // 2. Preserve the absolute best raw solution.
+        this._updateChampion(currentRawBest);
+
+        // Pressure reacts to objective fitness,
+        // not to complexity-adjusted selection score.
+        this.updateMutationPressure(currentRawBest.scoreRaw, this._evolveCounts);
+
+        // 3. Apply complexity penalty and normalize
+        // selection fitness.
         this._normalizeScore();
 
-        this._genSpecies();
+        // 4. Preserve the current complexity-aware winner.
+        this._updateRunnerUp(this._clients[0]);
 
-        // Dynamically adjust CP based on current species count
+        // 5. During stagnation return both search directions:
+        // absolute performance and controlled complexity.
+        const elitesReinserted = this._reinsertElitesIfStagnant();
+
+        if (elitesReinserted) {
+            // Inserted snapshots contain valid scoreRaw and complexity,
+            // but selection scores must be recalculated relative
+            // to the current population.
+            this._normalizeScore();
+        }
+
+        this._genSpecies();
         this.adjustCP(this._species.length, this._evolveCounts);
 
         this._kill();
@@ -844,57 +954,58 @@ export class GeneLSTM {
         this._mutate();
     }
 
-    private _normalizeScore() {
-        let maxScore = 0;
-        const bestScoreSet: number[] = [];
-        let minScore = Infinity;
-
-        for (let i = 0; i < this._clients.length; i += 1) {
-            const item = this._clients[i];
-            item.bestScore = false;
-            maxScore = item.score > maxScore ? item.score : maxScore;
-            minScore = item.score < minScore ? item.score : minScore;
+    private _normalizeScore(): void {
+        if (this._clients.length === 0) {
+            return;
         }
 
-        for (let i = 0; i < this._clients.length; i += 1) {
-            const item = this._clients[i];
-            if (item.score === maxScore) {
-                bestScoreSet.push(i);
-                item.bestScore = true;
-                item.score = 1;
-            } else if (item.score === minScore) {
-                item.score = 0;
-            } else {
-                item.score = (item.score - minScore) / (maxScore - minScore);
+        let rawMax = -Infinity;
+        let rawMin = Infinity;
+        let maxComplexity = 0;
+
+        for (const client of this._clients) {
+            rawMax = Math.max(rawMax, client.scoreRaw);
+            rawMin = Math.min(rawMin, client.scoreRaw);
+            maxComplexity = Math.max(maxComplexity, client.complexity);
+        }
+
+        const rawSpan = rawMax - rawMin;
+        const effectiveSpan = Math.max(rawSpan, 0.05);
+
+        const lambda = this._optimization ? this._LAMBDA_HIGH : this._LAMBDA_LOW;
+
+        for (const client of this._clients) {
+            const complexityNorm = maxComplexity > 0 ? Math.log1p(client.complexity) / Math.log1p(maxComplexity) : 0;
+
+            const complexityPenalty = lambda * complexityNorm * effectiveSpan;
+
+            client.adjustedScore = client.scoreRaw - complexityPenalty;
+        }
+
+        let adjustedMax = -Infinity;
+        let adjustedMin = Infinity;
+
+        for (const client of this._clients) {
+            adjustedMax = Math.max(adjustedMax, client.adjustedScore);
+
+            adjustedMin = Math.min(adjustedMin, client.adjustedScore);
+        }
+
+        const adjustedSpan = adjustedMax - adjustedMin;
+
+        for (const client of this._clients) {
+            client.score = adjustedSpan <= this._EPS ? 1 : (client.adjustedScore - adjustedMin) / adjustedSpan;
+        }
+
+        // Only one sorting operation per generation.
+        this._clients.sort((a, b) => {
+            const scoreDifference = b.score - a.score;
+
+            if (Math.abs(scoreDifference) > this._EPS) {
+                return scoreDifference;
             }
-        }
 
-        if (bestScoreSet.length > 1) {
-            bestScoreSet.forEach((i, index) => {
-                if (index === 0) return;
-                this._clients[i].bestScore = false;
-            });
-        }
-
-        this._clients.sort((a, b) => (a.score > b.score ? -1 : 1));
-
-        const cof = this._optimization ? 0.1 : 0.01;
-
-        // separate knobs (tune as needed)
-        const depthCof = cof; // penalty for extra LSTM blocks
-        const unitsCof = cof * 0.35; // penalty for hidden units (softer)
-
-        this._clients.forEach(item => {
-            const blocks = item.genome.lstmArray.length;
-
-            // sum hidden size across all blocks
-            const units = item.genome.lstmArray.reduce((acc, lstm) => acc + (lstm.readoutW?.length ?? 1), 0);
-
-            // soft growth penalties
-            const depthPenalty = (Math.sqrt(Math.sqrt(blocks)) - 1) * depthCof;
-            const unitsPenalty = (Math.sqrt(units) - 1) * unitsCof;
-
-            item.score -= depthPenalty + unitsPenalty;
+            return a.complexity - b.complexity;
         });
     }
 
@@ -961,6 +1072,56 @@ export class GeneLSTM {
             client.mutate();
         });
     }
+    private _reinsertElitesIfStagnant(): boolean {
+        if (
+            this._champion === null ||
+            this._championStagnationCount < this._championStagnationThreshold ||
+            this._clients.length === 0
+        ) {
+            return false;
+        }
+
+        const elites: Client[] = [this._champion];
+
+        if (this._runnerUp !== null) {
+            elites.push(this._runnerUp);
+        }
+
+        const insertCount = Math.min(elites.length, this._clients.length);
+
+        for (let i = 0; i < insertCount; i++) {
+            // Population is sorted by normalized selection score.
+            // Replace the worst clients with elite snapshots.
+            const targetIndex = this._clients.length - 1 - i;
+
+            const replacedClient = this._clients[targetIndex];
+
+            if (replacedClient.species !== null) {
+                replacedClient.species = null;
+            }
+
+            const eliteCopy = this._copyClient(elites[i]);
+
+            eliteCopy.bestScore = false;
+
+            this._clients[targetIndex] = eliteCopy;
+        }
+
+        if (this._verbose === 2) {
+            console.log(
+                `[Gen ${this._evolveCounts}] Re-inserted ` +
+                    `${insertCount === 2 ? 'champion and runnerUp' : 'champion'} ` +
+                    `after ${this._championStagnationCount} stagnant generations`,
+            );
+        }
+
+        this._championStagnationCount = 0;
+
+        // Champion may now be the strongest raw client in population.
+        this._markBestRawClient();
+
+        return true;
+    }
 
     /**
      * Updates the champion (best client ever seen) and handles re-insertion.
@@ -973,83 +1134,55 @@ export class GeneLSTM {
      *    by replacing the worst performing client
      * 4. After re-insertion, reset stagnation counter
      */
-    private _updateChampion(): void {
-        if (this._clients.length === 0) {
-            return;
-        }
+    private _updateChampion(currentBest: Client): void {
+        const currentBestScoreRaw = currentBest.scoreRaw;
+        const currentBestComplexity = currentBest.complexity;
 
-        this._clients.sort((a, b) => {
-            return a.score > b.score ? -1 : 1;
-        });
+        // Champion means one thing only:
+        // the highest raw fitness ever observed.
+        const shouldReplace = this._champion === null || currentBestScoreRaw > this._champion.scoreRaw;
 
-        // Current best client (already sorted by score in _normalizeScore)
-        const currentBest = this._clients[0];
+        if (shouldReplace) {
+            const action = this._champion === null ? 'initialized' : 'updated';
 
-        const { complexity: currentBestComplexity } = this._calcClientComplexity(currentBest);
-
-        // Initialize champion if not exists
-        if (this._champion === null) {
-            // Create a deep copy of the best client
             this._champion = this._copyClient(currentBest);
+
+            // Champion's public score should represent its raw fitness,
+            // not a generation-relative normalized score.
+            this._champion.score = currentBestScoreRaw;
+            this._champion.scoreRaw = currentBestScoreRaw;
             this._championStagnationCount = 0;
 
-            this._bestHistory = [currentBest.score];
-            this._complexityHistory = [currentBestComplexity];
-
-            if (this._verbose === 2)
+            if (this._verbose === 2) {
                 console.log(
-                    `[Gen ${this._evolveCounts}] Champion initialized with score ${currentBest.score.toFixed(4)}`,
+                    `[Gen ${this._evolveCounts}] Champion ${action}: ` +
+                        `rawScore=${currentBestScoreRaw.toFixed(12)}, ` +
+                        `complexity=${currentBestComplexity.toFixed(2)}`,
                 );
-
-            return;
-        }
-
-        // Compare current best with champion (use raw score comparison)
-        // Since scores are normalized, we compare the actual fitness before normalization
-        // We'll use a simple comparison: if current best has higher normalized score, it's better
-        const championImproved = currentBest.score > this._champion.score;
-
-        if (championImproved) {
-            // Update champion with new best
-            this._champion = this._copyClient(currentBest);
-            this._championStagnationCount = 0;
-            if (this._verbose === 2)
-                console.log(`[Gen ${this._evolveCounts}] Champion updated with score ${currentBest.score.toFixed(4)}`);
-        } else {
-            // No improvement - increment stagnation counter
-            this._championStagnationCount++;
-
-            // Check if we should re-insert champion
-            if (this._championStagnationCount >= this._championStagnationThreshold) {
-                // Re-insert champion by replacing the worst client
-                const worstClientIndex = this._clients.length - 1;
-                const worstClient = this._clients[worstClientIndex];
-                if (this._verbose === 2)
-                    console.log(
-                        `[Gen ${this._evolveCounts}] Champion re-inserted after ${this._championStagnationCount} stagnant epochs (replacing worst client with score ${worstClient.score.toFixed(4)})`,
-                    );
-
-                // Detach worst client from its species
-                // The species will clean up in the next _genSpecies call
-                if (worstClient.species !== null) {
-                    worstClient.species = null;
-                }
-
-                // Create a fresh copy of champion and insert it
-                const championCopy = this._copyClient(this._champion);
-                this._clients[worstClientIndex] = championCopy;
-
-                // Champion will be assigned to a species in the next _genSpecies call
-                // Reset stagnation counter
-                this._championStagnationCount = 0;
             }
+        } else {
+            this._championStagnationCount++;
         }
 
-        this._bestHistory.push(currentBest.score);
+        this._bestHistory.push(currentBestScoreRaw);
         this._complexityHistory.push(currentBestComplexity);
 
-        if (this._bestHistory.length > HISTORY_WINDOW) this._bestHistory.shift();
-        if (this._complexityHistory.length > HISTORY_WINDOW) this._complexityHistory.shift();
+        if (this._bestHistory.length > HISTORY_WINDOW) {
+            this._bestHistory.shift();
+        }
+
+        if (this._complexityHistory.length > HISTORY_WINDOW) {
+            this._complexityHistory.shift();
+        }
+    }
+
+    private _updateRunnerUp(currentSelectionBest: Client): void {
+        // runnerUp is a snapshot of the current generation's
+        // best complexity-adjusted client.
+        this._runnerUp = this._copyClient(currentSelectionBest);
+
+        // bestScore is generation-specific raw-elite metadata.
+        this._runnerUp.bestScore = false;
     }
 
     /**
@@ -1057,15 +1190,19 @@ export class GeneLSTM {
      * This ensures the champion is preserved independently of population changes.
      */
     private _copyClient(client: Client): Client {
-        // Create a new genome by copying the structure from the original
         const geneOptions = client.genome.lstmArray.map(lstm => lstm.model());
+
         const newGenome = new Genome(this, geneOptions);
 
-        // Create a new client with the copied genome
         const newClient = new Client(newGenome);
+
         newClient.score = client.score;
-        newClient.bestScore = client.bestScore;
+        newClient.scoreRaw = client.scoreRaw;
+        newClient.adjustedScore = client.adjustedScore;
+        newClient.complexity = client.complexity;
+
         newClient.error = client.error;
+        newClient.bestScore = false;
 
         return newClient;
     }

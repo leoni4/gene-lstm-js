@@ -38,7 +38,7 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         SURVIVORS: options?.SURVIVORS ?? 0.6,
         MUTATION_RATE: options?.MUTATION_RATE ?? 1,
 
-        OPT_ERR_THRESHOLD: options?.OPT_ERR_THRESHOLD ?? 0.02,
+        OPT_ERR_THRESHOLD: options?.OPT_ERR_THRESHOLD ?? 0.005,
         OPTIMIZATION_PERIOD: options?.OPTIMIZATION_PERIOD ?? 10,
         LAMBDA_HIGH: options?.LAMBDA_HIGH ?? 0.1,
         LAMBDA_LOW: options?.LAMBDA_LOW ?? 0.01,

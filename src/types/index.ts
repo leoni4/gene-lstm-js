@@ -133,4 +133,12 @@ export interface GeneLSTMOptions {
     stagnationThreshold?: number;
 
     verbose?: number;
+    
+    OPT_ERR_THRESHOLD?: number;
+    OPTIMIZATION_PERIOD?: number;
+
+    LAMBDA_HIGH?: number;
+    LAMBDA_LOW?: number;
+
+    EPS?: number;
 }

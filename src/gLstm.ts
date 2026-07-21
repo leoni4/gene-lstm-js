@@ -367,19 +367,17 @@ export class GeneLSTM {
 
     private _init(data?: GeneOptions, loadPercent?: number) {
         let genome: Genome;
-        const emptyGenome = this.emptyGenome();
-
+        
         if (data) {
             genome = this._initGenome(data);
-        } else {
-            genome = emptyGenome;
-        }
+        } 
 
-        function getGenome(ptc: number): Genome {
+        const getGenome = (ptc: number): Genome => {
             if (data && loadPercent && ptc < loadPercent) return genome;
 
-            return emptyGenome;
+            return this.emptyGenome();
         }
+
         this._clients = [];
         for (let i = 0; i < this._maxClients; i += 1) {
             const c: Client = new Client(getGenome(i / this._maxClients));

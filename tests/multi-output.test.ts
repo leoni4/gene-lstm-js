@@ -283,7 +283,9 @@ describe('Multi-Output Support', () => {
             const before = lstm.readoutW.map(row => [...row]);
 
             // Force mutation
-            client.mutate(true);
+            for (let i = 0; i < 4; i++) {
+                client.mutate(true);
+            }
 
             const after = lstm.readoutW;
 

@@ -349,7 +349,7 @@ describe('LSTM', () => {
             const lstm = new LSTM(glstmHighAdd);
             const sizeBefore = lstm.readoutW[0].length;
 
-            lstm.mutate();
+            for (let i = 0; i < 4; i++) lstm.mutate();
 
             expect(lstm.readoutW[0].length).toBeGreaterThan(sizeBefore);
         });

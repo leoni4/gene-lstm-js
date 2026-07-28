@@ -44,4 +44,8 @@ export class Client {
     calculate(input: SeqInput): number[] {
         return this.genome.calculate(input);
     }
+
+    model() {
+        return this.genome.lstmArray.map(l => l.model());
+    }
 }

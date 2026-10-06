@@ -56,3 +56,7 @@ sw.*
 .DS_Store
 
 *.swp
+
+.scratch
+
+CLAUDE.local.md

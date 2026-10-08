@@ -98,6 +98,8 @@ export type CompactTrigger = 'levelCounter' | 'sinceImprovement';
 
 export type StagnationReference = 'bestEver' | 'rolling';
 
+export type CrossoverStructure = 'max' | 'fitter';
+
 export interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
@@ -124,6 +126,9 @@ export interface GeneLSTMOptions {
     PROBABILITY_REMOVE_BLOCK?: number;
     PROBABILITY_MUTATE_ADD_UNIT?: number;
     PROBABILITY_MUTATE_REMOVE_UNIT?: number;
+    crossoverStructure?: CrossoverStructure;
+    MAX_LAYERS?: number;
+    MAX_UNITS_PER_LAYER?: number;
     PROBABILITY_MUTATE_READOUT_W?: number;
     PROBABILITY_MUTATE_READOUT_B?: number;
     sleepingBlockConfig?: Partial<SleepingBlockConfig>;

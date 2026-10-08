@@ -13,6 +13,7 @@ Complete reference guide for all configuration options available in the `GeneLST
 - [Bias Mutation Parameters](#bias-mutation-parameters)
 - [Skip Connection (Alpha) Mutation](#skip-connection-alpha-mutation)
 - [Topology Mutation Parameters](#topology-mutation-parameters)
+- [Growth Control](#growth-control)
 - [Readout Layer Mutation](#readout-layer-mutation)
 - [Sleeping Block Configuration](#sleeping-block-configuration)
 - [Dynamic Speciation](#dynamic-speciation)
@@ -70,6 +71,11 @@ interface GeneLSTMOptions {
     PROBABILITY_REMOVE_BLOCK?: number;
     PROBABILITY_MUTATE_ADD_UNIT?: number;
     PROBABILITY_MUTATE_REMOVE_UNIT?: number;
+
+    // Growth control
+    crossoverStructure?: 'max' | 'fitter';
+    MAX_LAYERS?: number;
+    MAX_UNITS_PER_LAYER?: number;
 
     // Readout layer mutations
     PROBABILITY_MUTATE_READOUT_W?: number;
@@ -600,7 +606,7 @@ Probability of attempting a block-level mutation (add or remove). For each genom
 
 1. It selects "remove" with the probability `min(PROBABILITY_REMOVE_BLOCK × t, 0.9)`.
 2. If it selects "remove" and the genome has 2 or more blocks, it removes the last block or the first block (50% each).
-3. In all other cases (also "remove" with only 1 block), it adds a sleeping block: at the end with the probability `PROBABILITY_ADD_BLOCK_APPEND`, else at the start.
+3. In all other cases (also "remove" with only 1 block), it adds a sleeping block: at the end with the probability `PROBABILITY_ADD_BLOCK_APPEND`, else at the start. A genome with [`MAX_LAYERS`](#max_layers) or more blocks does not get a block.
 
 **Example:**
 
@@ -651,7 +657,7 @@ const glstm = new GeneLSTM(300, {
 **Default:** `0.02`  
 **Range:** `0.0` - `1.0`
 
-Probability of adding a hidden unit to a block. Each block tests it once per mutation. The probability is multiplied by the topology multiplier of the mutation pressure; `MUTATION_RATE` does not change it. The new unit has random gate weights and zero readout weights.
+Probability of adding a hidden unit to a block. Each block tests it once per mutation. The probability is multiplied by the topology multiplier of the mutation pressure; `MUTATION_RATE` does not change it. The new unit has random gate weights and zero readout weights. A block with [`MAX_UNITS_PER_LAYER`](#max_units_per_layer) or more units does not get a unit.
 
 ### `PROBABILITY_MUTATE_REMOVE_UNIT`
 
@@ -668,6 +674,59 @@ Probability of removing a hidden unit from a block. Each block tests it once per
 const glstm = new GeneLSTM(300, {
     PROBABILITY_MUTATE_ADD_UNIT: 0.08,
     PROBABILITY_MUTATE_REMOVE_UNIT: 0.01,
+});
+```
+
+---
+
+## Growth Control
+
+By default, crossover gives the child the larger structure of the two parents: the larger block count, and in each block the larger unit count. A block or unit that only one parent has is always copied. Thus crossover can only make genomes larger, and there is no size limit. These options control this growth. With the default values, the behaviour (and the `Math.random` sequence) is the same as in earlier versions.
+
+### `crossoverStructure`
+
+**Type:** `'max' | 'fitter'`  
+**Default:** `'max'`
+
+- `'max'`: the child gets the larger structure (behaviour of earlier versions). [`MAX_LAYERS`](#max_layers) and [`MAX_UNITS_PER_LAYER`](#max_units_per_layer) cap this growth.
+- `'fitter'` (NEAT style): the child gets the structure of the fitter parent: its block count, and in each block its unit count. The units that both parents have are crossed as in `'max'`. The extra blocks and units of the fitter parent are copied. The extra blocks and units of the other parent are dropped. Thus crossover does not make the child larger than the fitter parent.
+
+During evolution, the fitter parent is the parent with the higher score (the first parent if the scores are equal). If you call `Genome.crossOver(g1, g2)` directly, `g1` is the fitter parent.
+
+### `MAX_LAYERS`
+
+**Type:** `number`  
+**Default:** `Infinity`  
+**Minimum:** `1` (the value is rounded down)
+
+Maximum number of blocks (layers) that growth can make.
+
+- Block mutation: when the genome has `MAX_LAYERS` or more blocks, an "add" result does not add a block. The random decisions of the block mutation stay the same; only the creation of the sleeping block is skipped.
+- Crossover with `crossoverStructure: 'max'`: the child gets `min(max(L1, L2), max(MAX_LAYERS, min(L1, L2)))` blocks (`L1`, `L2` = block counts of the parents). Thus crossover does not grow the child past the limit, but it keeps the block count that both parents have.
+- `crossoverStructure: 'fitter'` does not use the limit in crossover (the child is never larger than the fitter parent).
+- A loaded genome (`loadData`) that is above the limit is not pruned. Mutation and crossover only stop it from growing.
+
+### `MAX_UNITS_PER_LAYER`
+
+**Type:** `number`  
+**Default:** `Infinity`  
+**Minimum:** `1` (the value is rounded down)
+
+Maximum number of hidden units in one block that growth can make.
+
+- Unit mutation: when a block has `MAX_UNITS_PER_LAYER` or more units, an add-unit result does not add a unit. The random decision stays the same; only the creation of the unit is skipped.
+- Crossover with `crossoverStructure: 'max'`: a block that both parents have gets `min(max(H1, H2), max(MAX_UNITS_PER_LAYER, min(H1, H2)))` units. A block that only one parent has is copied with at most `MAX_UNITS_PER_LAYER` units; the first units (and their readout weights) are kept.
+- `crossoverStructure: 'fitter'` does not use the limit in crossover.
+- A loaded block that is above the limit is not pruned.
+
+**Example:**
+
+```typescript
+// NEAT-style crossover and a hard size limit
+const glstm = new GeneLSTM(300, {
+    crossoverStructure: 'fitter',
+    MAX_LAYERS: 2,
+    MAX_UNITS_PER_LAYER: 16,
 });
 ```
 

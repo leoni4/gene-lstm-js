@@ -137,10 +137,12 @@ export class Genome {
             } else {
                 const shouldAppend = Math.random() < this._glstm.PROBABILITY_ADD_BLOCK_APPEND;
 
-                if (shouldAppend) {
-                    this._lstmArray.push(this._createSleepingBlock());
-                } else {
-                    this._lstmArray.unshift(this._createSleepingBlock());
+                if (this._lstmArray.length < this._glstm.MAX_LAYERS) {
+                    if (shouldAppend) {
+                        this._lstmArray.push(this._createSleepingBlock());
+                    } else {
+                        this._lstmArray.unshift(this._createSleepingBlock());
+                    }
                 }
             }
         }
@@ -186,9 +188,13 @@ export class Genome {
         const lstms2 = g2.lstmArray;
         const geneOptions: LstmOptions[] = [];
 
-        const maxLength = Math.max(lstms1.length, lstms2.length);
+        const glstm = g1.glstm;
+        const childSize = (n1: number, n2: number, limit: number): number =>
+            glstm.crossoverStructure === 'fitter' ? n1 : Math.min(Math.max(n1, n2), Math.max(limit, Math.min(n1, n2)));
 
-        for (let i = 0; i < maxLength; i++) {
+        const childLength = childSize(lstms1.length, lstms2.length, glstm.MAX_LAYERS);
+
+        for (let i = 0; i < childLength; i++) {
             const block1 = lstms1[i];
             const block2 = lstms2[i];
 
@@ -198,7 +204,7 @@ export class Genome {
 
                 const H1 = a.hiddenSize ?? 1;
                 const H2 = b.hiddenSize ?? 1;
-                const H = Math.max(H1, H2);
+                const H = childSize(H1, H2, glstm.MAX_UNITS_PER_LAYER);
                 const minH = Math.min(H1, H2);
 
                 const crossGateArray = (ga: GateUnitOptions[], gb: GateUnitOptions[]) => {
@@ -264,7 +270,22 @@ export class Genome {
                 });
             } else {
                 const use1 = block1 && (!block2 || Math.random() < 0.75);
-                geneOptions.push(use1 ? block1!.model() : block2!.model());
+                const copied = use1 ? block1!.model() : block2!.model();
+
+                const H = childSize(copied.hiddenSize, 0, glstm.MAX_UNITS_PER_LAYER);
+                if (H >= copied.hiddenSize) {
+                    geneOptions.push(copied);
+                } else {
+                    geneOptions.push({
+                        ...copied,
+                        hiddenSize: H,
+                        forgetGate: copied.forgetGate.slice(0, H),
+                        potentialLongToRem: copied.potentialLongToRem.slice(0, H),
+                        potentialLongMemory: copied.potentialLongMemory.slice(0, H),
+                        shortMemoryToRemember: copied.shortMemoryToRemember.slice(0, H),
+                        readoutW: (copied.readoutW as number[][]).map(row => row.slice(0, H)),
+                    });
+                }
             }
         }
 

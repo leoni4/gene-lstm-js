@@ -619,7 +619,9 @@ export class LSTM {
         const topologyPressure = pressure.topology;
 
         if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_ADD_UNIT * topologyPressure) {
-            this._mutateAddUnit();
+            if (this._hiddenSize() < this._geneLstm.MAX_UNITS_PER_LAYER) {
+                this._mutateAddUnit();
+            }
         }
         if (Math.random() < this._geneLstm.PROBABILITY_MUTATE_REMOVE_UNIT * topologyPressure) {
             this._mutateRemoveUnit();

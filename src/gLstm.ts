@@ -12,6 +12,7 @@ import type {
     SpeciesSelection,
     CompactTrigger,
     StagnationReference,
+    CrossoverStructure,
     MutationPressureType,
 } from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST, IGlstmFitOptions, IGlstmFitHistory } from './types/index.js';
@@ -74,6 +75,10 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
 
         PROBABILITY_MUTATE_ADD_UNIT: options?.PROBABILITY_MUTATE_ADD_UNIT ?? 0.02,
         PROBABILITY_MUTATE_REMOVE_UNIT: options?.PROBABILITY_MUTATE_REMOVE_UNIT ?? 0.02,
+
+        crossoverStructure: options?.crossoverStructure ?? 'max',
+        MAX_LAYERS: options?.MAX_LAYERS ?? Infinity,
+        MAX_UNITS_PER_LAYER: options?.MAX_UNITS_PER_LAYER ?? Infinity,
 
         PROBABILITY_MUTATE_READOUT_W: options?.PROBABILITY_MUTATE_READOUT_W ?? 1,
         PROBABILITY_MUTATE_READOUT_B: options?.PROBABILITY_MUTATE_READOUT_B ?? 0.6,
@@ -151,6 +156,9 @@ export class GeneLSTM {
     private _PROBABILITY_REMOVE_BLOCK: number;
     private _PROBABILITY_MUTATE_ADD_UNIT: number;
     private _PROBABILITY_MUTATE_REMOVE_UNIT: number;
+    private _crossoverStructure: CrossoverStructure;
+    private _MAX_LAYERS: number;
+    private _MAX_UNITS_PER_LAYER: number;
     private _PROBABILITY_MUTATE_READOUT_W: number;
     private _PROBABILITY_MUTATE_READOUT_B: number;
 
@@ -240,6 +248,10 @@ export class GeneLSTM {
 
         this._PROBABILITY_MUTATE_ADD_UNIT = o.PROBABILITY_MUTATE_ADD_UNIT;
         this._PROBABILITY_MUTATE_REMOVE_UNIT = o.PROBABILITY_MUTATE_REMOVE_UNIT;
+
+        this._crossoverStructure = o.crossoverStructure;
+        this._MAX_LAYERS = Math.max(1, Math.floor(o.MAX_LAYERS));
+        this._MAX_UNITS_PER_LAYER = Math.max(1, Math.floor(o.MAX_UNITS_PER_LAYER));
 
         this._PROBABILITY_MUTATE_READOUT_W = o.PROBABILITY_MUTATE_READOUT_W;
         this._PROBABILITY_MUTATE_READOUT_B = o.PROBABILITY_MUTATE_READOUT_B;
@@ -363,6 +375,15 @@ export class GeneLSTM {
     }
     get PROBABILITY_MUTATE_REMOVE_UNIT() {
         return this._PROBABILITY_MUTATE_REMOVE_UNIT;
+    }
+    get crossoverStructure() {
+        return this._crossoverStructure;
+    }
+    get MAX_LAYERS() {
+        return this._MAX_LAYERS;
+    }
+    get MAX_UNITS_PER_LAYER() {
+        return this._MAX_UNITS_PER_LAYER;
     }
     get PROBABILITY_MUTATE_READOUT_W() {
         return this._PROBABILITY_MUTATE_READOUT_W;

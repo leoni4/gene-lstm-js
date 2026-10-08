@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { GeneLSTM } from '../src/gLstm.js';
 import { EMutationPressure } from '../src/types/index.js';
 import type { GeneOptions } from '../src/types/index.js';
+import { mulberry32, withSeededRandom } from './helpers/seededRandom.js';
+import { makeGeneOptions } from './helpers/randomGenome.js';
 
 describe('GeneLSTM', () => {
     describe('constructor', () => {
@@ -571,16 +573,17 @@ describe('GeneLSTM', () => {
             });
 
             it('should stop early when error threshold is reached', () => {
-                const glstm = new GeneLSTM(50);
+                const { result: history } = withSeededRandom(586, () => {
+                    const glstm = new GeneLSTM(50);
 
-                // Simple problem - should converge quickly
-                const xTrain = [[0], [1]];
-                const yTrain = [0, 1];
+                    const xTrain = [[0], [1]];
+                    const yTrain = [0, 1];
 
-                const history = glstm.fit(xTrain, yTrain, {
-                    epochs: 1000,
-                    errorThreshold: 0.1,
-                    verbose: 0,
+                    return glstm.fit(xTrain, yTrain, {
+                        epochs: 1000,
+                        errorThreshold: 0.1,
+                        verbose: 0,
+                    });
                 });
 
                 expect(history.stoppedEarly).toBe(true);
@@ -1251,5 +1254,40 @@ describe('GeneLSTM', () => {
 
             expect(glstm.clients).toHaveLength(10);
         });
+
+        for (const bad of [NaN, Infinity, -Infinity]) {
+            it(`should throw on a non-finite score (${bad})`, () => {
+                const glstm = new GeneLSTM(5);
+
+                glstm.clients.forEach((c, i) => {
+                    c.score = i / 10;
+                });
+                glstm.clients[3].score = bad;
+
+                expect(() => glstm.evolve()).toThrow(`Client has a non-finite score: ${bad}`);
+            });
+        }
+
+        for (const [loadPercent, loaded] of [
+            [0.5, 5],
+            [0.3, 3],
+        ] as const) {
+            it(`should load ${loaded} of 10 clients with loadPercent ${loadPercent}`, () => {
+                const loadData = makeGeneOptions(mulberry32(8), 2, [3, 2], 1, 1);
+                const glstm = new GeneLSTM(10, { loadData, loadPercent });
+
+                const hasLoadedShape = glstm.clients.map(c => {
+                    const sizes = c.genome.lstmArray.map(l => l.shortMemory.length);
+
+                    return sizes.length === 2 && sizes[0] === 3 && sizes[1] === 2;
+                });
+
+                expect(hasLoadedShape.filter(Boolean)).toHaveLength(loaded);
+                expect(hasLoadedShape.slice(0, loaded).every(Boolean)).toBe(true);
+                for (const c of glstm.clients.slice(loaded)) {
+                    expect(c.genome.lstmArray.map(l => l.shortMemory.length)).toEqual([1]);
+                }
+            });
+        }
     });
 });

@@ -357,6 +357,7 @@ describe('LSTM', () => {
         it('should remove units with high remove probability', () => {
             const glstmHighRemove = new GeneLSTM(10, {
                 PROBABILITY_MUTATE_REMOVE_UNIT: 1.0,
+                PROBABILITY_MUTATE_ADD_UNIT: 0,
             });
 
             const options: LstmOptions = {
@@ -387,29 +388,30 @@ describe('LSTM', () => {
             };
 
             const lstm = new LSTM(glstmHighRemove, options);
-            const sizeBefore = lstm.readoutW.length;
+            const sizeBefore = lstm.shortMemory.length;
 
             lstm.mutate();
 
-            // Should remove at least one unit (but keep at least 1)
-            expect(lstm.readoutW.length).toBeLessThanOrEqual(sizeBefore);
-            expect(lstm.readoutW.length).toBeGreaterThanOrEqual(1);
+            expect(sizeBefore).toBe(3);
+            expect(lstm.shortMemory.length).toBe(sizeBefore - 1);
+            expect(lstm.readoutW[0].length).toBe(sizeBefore - 1);
         });
 
         it('should not remove last unit', () => {
             const glstmHighRemove = new GeneLSTM(10, {
                 PROBABILITY_MUTATE_REMOVE_UNIT: 1.0,
+                PROBABILITY_MUTATE_ADD_UNIT: 0,
             });
 
             const lstm = new LSTM(glstmHighRemove);
+            expect(lstm.shortMemory.length).toBe(1);
 
-            // Try multiple mutations
             for (let i = 0; i < 10; i++) {
                 lstm.mutate();
             }
 
-            // Should always keep at least 1 unit
-            expect(lstm.readoutW.length).toBeGreaterThanOrEqual(1);
+            expect(lstm.shortMemory.length).toBe(1);
+            expect(lstm.readoutW[0].length).toBe(1);
         });
 
         it('should mutate readout weights', () => {

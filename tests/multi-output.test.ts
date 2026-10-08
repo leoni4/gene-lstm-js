@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { GeneLSTM } from '../src/gLstm.js';
 import { Genome } from '../src/genome.js';
+import { withSeededRandom } from './helpers/seededRandom.js';
 
 describe('Multi-Output Support', () => {
     describe('basic multi-output initialization', () => {
@@ -72,7 +73,6 @@ describe('Multi-Output Support', () => {
                 INPUT_FEATURES: 1,
             });
 
-            // Evolve a bit to get non-zero weights
             for (let i = 0; i < 5; i++) {
                 glstm.clients.forEach(c => {
                     c.score = Math.random();
@@ -84,36 +84,36 @@ describe('Multi-Output Support', () => {
             const output = client.calculate([0.5, 0.3, 0.8]);
 
             expect(output).toHaveLength(2);
-            // After evolution, outputs should not be identical (very unlikely)
         });
     });
 
     describe('multi-output training', () => {
         it('should train 2-bit parity problem', () => {
-            const glstm = new GeneLSTM(30, {
-                OUTPUT_DIM: 2,
-                INPUT_FEATURES: 1,
-            });
+            const { result: history } = withSeededRandom(119, () => {
+                const glstm = new GeneLSTM(30, {
+                    OUTPUT_DIM: 2,
+                    INPUT_FEATURES: 1,
+                });
 
-            // XOR-like problem: output [lastBit, firstBit]
-            const xTrain = [
-                [0, 0],
-                [0, 1],
-                [1, 0],
-                [1, 1],
-            ];
-            const yTrain = [
-                [0, 0], // last=0, first=0
-                [1, 0], // last=1, first=0
-                [0, 1], // last=0, first=1
-                [1, 1], // last=1, first=1
-            ];
+                const xTrain = [
+                    [0, 0],
+                    [0, 1],
+                    [1, 0],
+                    [1, 1],
+                ];
+                const yTrain = [
+                    [0, 0], // last=0, first=0
+                    [1, 0], // last=1, first=0
+                    [0, 1], // last=0, first=1
+                    [1, 1], // last=1, first=1
+                ];
 
-            const history = glstm.fit(xTrain, yTrain, {
-                epochs: 100,
-                errorThreshold: 0.2,
-                verbose: 0,
-                loss: 'mse',
+                return glstm.fit(xTrain, yTrain, {
+                    epochs: 100,
+                    errorThreshold: 0.2,
+                    verbose: 0,
+                    loss: 'mse',
+                });
             });
 
             expect(history.error[history.error.length - 1]).toBeLessThan(0.3);

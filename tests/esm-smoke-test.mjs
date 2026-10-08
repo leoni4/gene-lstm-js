@@ -70,23 +70,28 @@ test('MUTATION_PRESSURE_CONST is exported', () => {
 
 // Test 5: GeneLSTM can be instantiated
 test('GeneLSTM can be instantiated with valid parameters', () => {
-    const config = {
-        populationSize: 100,
-        eliteSize: 10,
-        mutationRate: 0.1,
-        crossoverRate: 0.7,
-        weightMutationStep: 0.1,
-        biasMutationStep: 0.1,
-    };
-
-    const geneLSTM = new GeneLSTM(config);
+    const geneLSTM = new GeneLSTM(5, { INPUT_FEATURES: 2 });
     assert(geneLSTM instanceof GeneLSTM, 'Should create a GeneLSTM instance');
+    assert(geneLSTM.clients.length === 5, 'Should create 5 clients');
+    assert(geneLSTM.INPUT_FEATURES === 2, 'Should keep INPUT_FEATURES');
 });
 
-// Test 6: Client can be instantiated
+// Test 6: Client can be instantiated and calculates
 test('Client can be instantiated', () => {
-    const client = new Client();
+    const geneLSTM = new GeneLSTM(5, { INPUT_FEATURES: 2 });
+    const fromPopulation = geneLSTM.clients[0];
+    const client = new Client(geneLSTM.emptyGenome());
+    assert(fromPopulation instanceof Client, 'Population client should be a Client instance');
     assert(client instanceof Client, 'Should create a Client instance');
+
+    for (const c of [fromPopulation, client]) {
+        const output = c.calculate([
+            [0.1, 0.2],
+            [0.3, 0.4],
+        ]);
+        assert(Array.isArray(output) && output.length === 1, 'calculate() should return 1 output');
+        assert(Number.isFinite(output[0]), 'calculate() output should be finite');
+    }
 });
 
 // Test 7: EMutationPressure has expected values

@@ -53,16 +53,13 @@ export class ShortMemoryBlock {
         let inTerm = 0;
 
         if (Array.isArray(input)) {
-            // vector input
             if (!this.weightIn || this.weightIn.length !== input.length) {
-                // init once, stable size
                 this.weightIn = new Array(input.length).fill(0).map(() => Math.random() * 2 - 1);
             }
             for (let i = 0; i < input.length; i++) {
                 inTerm += this.weightIn[i] * input[i];
             }
         } else {
-            // scalar input (old behavior)
             inTerm = this.weight2 * input;
         }
 
@@ -98,7 +95,6 @@ export class LSTM {
 
     private _shortMemoryToRemember: ShortMemoryBlock[];
 
-    // Skip connection strength for non-destructive mutations
     private _alpha: number;
 
     constructor(geneLstm: GeneLSTM, options?: LstmOptions) {
@@ -107,7 +103,6 @@ export class LSTM {
 
         const H = options?.hiddenSize ?? 1;
 
-        // Determine output dimension
         this._outputDim = options?.outputDim ?? this._geneLstm.OUTPUT_DIM ?? 1;
         this._outputActivation = options?.outputActivation ?? this._geneLstm.OUTPUT_ACTIVATION ?? 'sigmoid';
 
@@ -117,7 +112,6 @@ export class LSTM {
         ) => new ShortMemoryBlock(act, u?.weight1, u?.weight2, u?.bias, u?.weightIn);
 
         if (options) {
-            // gates restored from arrays
             this._forgetGate = new Array(H).fill(0).map((_, i) => makeBlock('sigmoid', options.forgetGate[i]));
             this._potentialLongToRem = new Array(H)
                 .fill(0)
@@ -129,16 +123,13 @@ export class LSTM {
                 .fill(0)
                 .map((_, i) => makeBlock('sigmoid', options.shortMemoryToRemember[i]));
 
-            // Backwards compatibility: convert old single-output format to new format
             if (options.readoutW && !Array.isArray(options.readoutW[0])) {
-                // Old format: readoutW is number[], readoutB is number
                 const oldW = options.readoutW as number[];
                 const oldB = options.readoutB as number;
                 this.readoutW = [oldW.length === H ? [...oldW] : new Array(H).fill(0)];
                 this.readoutB = [oldB ?? 0];
                 this._outputDim = 1;
             } else {
-                // New format: readoutW is number[][], readoutB is number[]
                 const optW = options.readoutW as number[][];
                 const optB = options.readoutB as number[];
 
@@ -155,7 +146,6 @@ export class LSTM {
                 }
             }
         } else {
-            // fresh random
             this._forgetGate = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
             this._potentialLongToRem = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
             this._potentialLongMemory = new Array(H).fill(0).map(() => new ShortMemoryBlock('tanh'));
@@ -171,7 +161,6 @@ export class LSTM {
         this.longMemory = new Array(H).fill(0);
         this.shortMemory = new Array(H).fill(0);
 
-        // normalize sizes if something was off
         this._ensureConsistentSizes();
     }
 
@@ -180,7 +169,6 @@ export class LSTM {
     }
 
     set alpha(value: number) {
-        // Clamp alpha between 0 and 1
         this._alpha = Math.max(0, Math.min(1, value));
     }
 
@@ -191,7 +179,6 @@ export class LSTM {
     private _ensureConsistentSizes() {
         const H = this._hiddenSize();
 
-        // init memories if needed
         if (!this.longMemory || this.longMemory.length !== H) this.longMemory = new Array(H).fill(0);
         if (!this.shortMemory || this.shortMemory.length !== H) this.shortMemory = new Array(H).fill(0);
 
@@ -205,7 +192,6 @@ export class LSTM {
         ensureGate(this._potentialLongMemory, 'tanh');
         ensureGate(this._shortMemoryToRemember, 'sigmoid');
 
-        // Ensure readout dimensions are correct
         while (this.readoutW.length < this._outputDim) {
             this.readoutW.push(new Array(H).fill(0));
         }
@@ -213,14 +199,12 @@ export class LSTM {
             this.readoutW.pop();
         }
 
-        // Ensure each output has correct hidden size
         for (let j = 0; j < this.readoutW.length; j++) {
             if (!this.readoutW[j] || this.readoutW[j].length !== H) {
                 this.readoutW[j] = new Array(H).fill(0);
             }
         }
 
-        // Ensure readout biases match outputDim
         while (this.readoutB.length < this._outputDim) {
             this.readoutB.push(0);
         }
@@ -239,7 +223,6 @@ export class LSTM {
         for (const b of this._potentialLongMemory) out.push(...flattenBlock(b));
         for (const b of this._shortMemoryToRemember) out.push(...flattenBlock(b));
 
-        // Flatten 2D readoutW
         for (const row of this.readoutW) {
             out.push(...row);
         }
@@ -277,31 +260,28 @@ export class LSTM {
 
         const fullSeqMemory: number[][] = [];
 
-        // ===== input is number[][] =====
         if (Array.isArray(input[0])) {
             const seq = input as number[][];
             for (const x_t of seq) {
-                this._predictUnit(x_t);
+                if (Array.isArray(x_t)) this._predictUnitVector(x_t);
+                else this._predictUnit(x_t);
                 if (fullSeq) fullSeqMemory.push(this._readout());
             }
 
             const y = this._readout();
             if (fullSeq) return fullSeqMemory.flat();
 
-            // alpha mix for HEAD only: apply per output dimension
             const last = seq.length ? seq[seq.length - 1] : [0];
             const yPrev = typeof last[0] === 'number' ? last[0] : 0;
 
             const a = this._alpha;
 
-            // For multi-output, apply alpha mixing to first output only
             const result = [...y];
             result[0] = (1 - a) * yPrev + a * y[0];
 
             return result;
         }
 
-        // ===== input is number[] =====
         const seq = input as number[];
         for (const num of seq) {
             this._predictUnit(num);
@@ -311,7 +291,6 @@ export class LSTM {
         const y = this._readout();
         if (fullSeq) return fullSeqMemory.flat();
 
-        // alpha mix for HEAD only: apply to first output
         const lastIn = seq.length ? seq[seq.length - 1] : 0;
         const a = this._alpha;
 
@@ -322,7 +301,6 @@ export class LSTM {
     }
 
     private _readout(): number[] {
-        // Multi-output: y[j] = activation(dot(readoutW[j], h) + readoutB[j])
         const output = new Array(this._outputDim);
 
         for (let j = 0; j < this._outputDim; j++) {
@@ -331,13 +309,11 @@ export class LSTM {
                 s += this.readoutW[j][k] * this.shortMemory[k];
             }
 
-            // Apply output activation
             if (this._outputActivation === 'sigmoid') {
                 output[j] = sigmoid(s);
             } else if (this._outputActivation === 'tanh') {
                 output[j] = Math.tanh(s);
             } else {
-                // identity
                 output[j] = s;
             }
         }
@@ -361,8 +337,62 @@ export class LSTM {
 
             const o = this._shortMemoryToRemember[k].calculate(input, hPrev);
 
-            // output per-unit
             this.shortMemory[k] = Math.tanh(this.longMemory[k]) * o;
+        }
+    }
+
+    private _predictUnitVector(x: number[]) {
+        const H = this.shortMemory.length;
+        const n = x.length;
+        const long = this.longMemory;
+        const short = this.shortMemory;
+
+        for (let k = 0; k < H; k++) {
+            const fb = this._forgetGate[k];
+            const ib = this._potentialLongToRem[k];
+            const gb = this._potentialLongMemory[k];
+            const ob = this._shortMemoryToRemember[k];
+
+            if (!fb.weightIn || fb.weightIn.length !== n) {
+                fb.weightIn = new Array(n).fill(0).map(() => Math.random() * 2 - 1);
+            }
+            if (!ib.weightIn || ib.weightIn.length !== n) {
+                ib.weightIn = new Array(n).fill(0).map(() => Math.random() * 2 - 1);
+            }
+            if (!gb.weightIn || gb.weightIn.length !== n) {
+                gb.weightIn = new Array(n).fill(0).map(() => Math.random() * 2 - 1);
+            }
+            if (!ob.weightIn || ob.weightIn.length !== n) {
+                ob.weightIn = new Array(n).fill(0).map(() => Math.random() * 2 - 1);
+            }
+
+            const fw = fb.weightIn;
+            const iw = ib.weightIn;
+            const gw = gb.weightIn;
+            const ow = ob.weightIn;
+            const hPrev = short[k];
+
+            let fd = 0;
+            let id = 0;
+            let gd = 0;
+            let od = 0;
+            for (let j = 0; j < n; j++) {
+                const xj = x[j];
+                fd += fw[j] * xj;
+                id += iw[j] * xj;
+                gd += gw[j] * xj;
+                od += ow[j] * xj;
+            }
+
+            const f = sigmoid(fb.weight1 * hPrev + fd + fb.bias);
+            long[k] *= f;
+
+            const i = sigmoid(ib.weight1 * hPrev + id + ib.bias);
+            const g = Math.tanh(gb.weight1 * hPrev + gd + gb.bias);
+            long[k] += i * g;
+
+            const o = sigmoid(ob.weight1 * hPrev + od + ob.bias);
+            short[k] = Math.tanh(long[k]) * o;
         }
     }
 
@@ -452,7 +482,6 @@ export class LSTM {
             return;
         }
 
-        // vector
         const i = target.index;
         const current = block.weightIn![i] ?? 0;
 
@@ -465,7 +494,6 @@ export class LSTM {
 
         let newBias = block.bias + (Math.random() * 2 - 1) * this._geneLstm.BIAS_SHIFT_STRENGTH * pressureScale;
 
-        // Clamp to reasonable range
         block.bias = Math.max(-10, Math.min(10, newBias));
     }
 
@@ -477,17 +505,14 @@ export class LSTM {
     private _mutateAddUnit() {
         this._ensureConsistentSizes();
 
-        // add new unit to each gate
         this._forgetGate.push(new ShortMemoryBlock('sigmoid'));
         this._potentialLongToRem.push(new ShortMemoryBlock('sigmoid'));
         this._potentialLongMemory.push(new ShortMemoryBlock('tanh'));
         this._shortMemoryToRemember.push(new ShortMemoryBlock('sigmoid'));
 
-        // extend memories
         this.longMemory.push(0);
         this.shortMemory.push(0);
 
-        // NEW unit initially does nothing -> append 0 weight to each output's readout
         for (let j = 0; j < this._outputDim; j++) {
             this.readoutW[j].push(0);
         }
@@ -498,7 +523,6 @@ export class LSTM {
         const H = this.shortMemory.length;
         if (H <= 1) return;
 
-        // pick unit to remove: find unit with minimal total |readoutW| across all outputs
         let idx = 0;
         let best = Infinity;
         for (let k = 0; k < H; k++) {
@@ -522,7 +546,6 @@ export class LSTM {
         removeAt(this.longMemory);
         removeAt(this.shortMemory);
 
-        // Remove from each output's readout weights
         for (let j = 0; j < this._outputDim; j++) {
             this.readoutW[j].splice(idx, 1);
         }
@@ -530,7 +553,6 @@ export class LSTM {
 
     private _mutateReadoutWeightShift(pressureScale: number) {
         this._ensureConsistentSizes();
-        // Pick random output and random weight within that output
         const j = Math.floor(Math.random() * this._outputDim);
         const k = Math.floor(Math.random() * this.readoutW[j].length);
         const delta = (Math.random() * 2 - 1) * this._geneLstm.WEIGHT_SHIFT_STRENGTH * pressureScale;
@@ -539,14 +561,12 @@ export class LSTM {
 
     private _mutateReadoutBiasShift(pressureScale: number) {
         this._ensureConsistentSizes();
-        // Pick random output bias to mutate
         const j = Math.floor(Math.random() * this._outputDim);
         const delta = (Math.random() * 2 - 1) * this._geneLstm.BIAS_SHIFT_STRENGTH * pressureScale;
         this.readoutB[j] = Math.max(-10, Math.min(10, this.readoutB[j] + delta));
     }
 
     mutate() {
-        // Apply weights mutation pressure to all weight/bias mutations
         const pressure = this._geneLstm.getMutationPressure();
         const weightsPressure = pressure.weights;
         const topologyPressure = pressure.topology;
@@ -576,7 +596,6 @@ export class LSTM {
             Math.random() <
             this._geneLstm.PROBABILITY_MUTATE_WEIGHT_RANDOM * this._geneLstm.MUTATION_RATE * weightsPressure
         ) {
-            // Refactored to use simpler Bernoulli sampling with pressure scaling
             this._mutateWeightRandom(weightsPressure);
         }
 
@@ -601,7 +620,6 @@ export class LSTM {
             this._mutateBiasShift(weightsPressure);
         }
 
-        // Mutate alpha (skip connection strength) occasionally
         if (
             Math.random() <
             this._geneLstm.PROBABILITY_MUTATE_ALPHA_SHIFT * this._geneLstm.MUTATION_RATE * weightsPressure

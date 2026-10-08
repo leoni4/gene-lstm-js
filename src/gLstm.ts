@@ -372,8 +372,18 @@ export class GeneLSTM {
             genome = this._initGenome(data);
         } 
 
+        let loadedGenomeUsed = false;
+
         const getGenome = (ptc: number): Genome => {
-            if (data && loadPercent && ptc < loadPercent) return genome;
+            if (data && loadPercent && ptc < loadPercent) {
+                if (!loadedGenomeUsed) {
+                    loadedGenomeUsed = true;
+
+                    return genome;
+                }
+
+                return new Genome(this, genome.lstmArray.map(lstm => lstm.copyOptions()));
+            }
 
             return this.emptyGenome();
         }

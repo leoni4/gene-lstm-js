@@ -109,7 +109,7 @@ export class LSTM {
         const makeBlock = (
             act: ActivationName,
             u?: { weight1?: number; weight2?: number; bias?: number; weightIn?: number[] },
-        ) => new ShortMemoryBlock(act, u?.weight1, u?.weight2, u?.bias, u?.weightIn);
+        ) => new ShortMemoryBlock(act, u?.weight1, u?.weight2, u?.bias, u?.weightIn ? [...u.weightIn] : undefined);
 
         if (options) {
             this._forgetGate = new Array(H).fill(0).map((_, i) => makeBlock('sigmoid', options.forgetGate[i]));
@@ -413,6 +413,10 @@ export class LSTM {
 
             alpha: this._alpha,
         };
+    }
+
+    copyOptions(): LstmOptions {
+        return { ...this.model(), outputDim: this._outputDim, outputActivation: this._outputActivation };
     }
 
     private _getBlockToMutate(): ShortMemoryBlock {

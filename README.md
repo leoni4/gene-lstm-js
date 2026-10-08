@@ -36,6 +36,7 @@ import { GeneLSTM } from '@leoni4/gene-lstm-js';
 const glstm = new GeneLSTM(300);
 
 // Training data (lastBit example - predict the last bit in a sequence)
+// Each input is a 1-D array: a sequence of 4 scalar time steps.
 const lastBit = {
     inputs: [
         [0, 0, 0, 0],
@@ -95,18 +96,25 @@ console.log('Prediction:', prediction);
 import { GeneLSTM } from '@leoni4/gene-lstm-js';
 
 // Training data just random example
+// Each input is a 2-D array: a sequence of time steps, each step has 4 features.
 const trainingData = {
     inputs: [
-        [0, 0.5, 0.25, 1],
-        [1, 0.5, 0.25, 1],
+        [
+            [0, 0.5, 0.25, 1],
+            [1, 0.5, 0.25, 0],
+        ],
+        [
+            [1, 0.5, 0.25, 1],
+            [0, 0.5, 0.25, 1],
+        ],
     ],
     outputs: [0, 1],
 };
 
 // Create a population of 300 clients
 const glstm = new GeneLSTM(300, {
-    INPUT_FEATURES: 4, // Number of input features
-    verbose: 1, // Logging level
+    INPUT_FEATURES: 4, // Must be equal to the number of features in each step
+    verbose: 0, // Logging level (GeneLSTM writes logs only at 2)
 });
 
 // Training loop
@@ -136,9 +144,14 @@ for (let epoch = 0; epoch < 1000; epoch++) {
 
 // Use the best performing network (champion)
 const champion = glstm.champion || glstm.clients[0];
-const prediction = champion.calculate([0.5, 0.5, 0.25, 1]);
+const prediction = champion.calculate([
+    [0.5, 0.5, 0.25, 1],
+    [1, 0.5, 0.25, 0],
+]);
 console.log('Prediction:', prediction);
 ```
+
+Before each `evolve()` call, give each client a new `score` (a higher score is better). `evolve()` replaces `client.score` with a normalized selection score and keeps your value in `client.scoreRaw`. A `NaN` or `±Infinity` score makes `evolve()` throw an error.
 
 ### Loading Pre-trained Models
 
@@ -148,11 +161,20 @@ import { PRE_TRAINED_DATA } from './my-trained-model.js';
 
 const glstm = new GeneLSTM(1, {
     loadData: PRE_TRAINED_DATA,
+    // model() does not save these values. Use the values of the training run.
+    INPUT_FEATURES: 4,
+    OUTPUT_DIM: 1,
+    OUTPUT_ACTIVATION: 'sigmoid',
 });
 
-const result = glstm.clients[0].calculate([0, 0.5, 0.25, 1]);
+const result = glstm.clients[0].calculate([
+    [0, 0.5, 0.25, 1],
+    [1, 0.5, 0.25, 0],
+]);
 console.log('Result:', result);
 ```
+
+The saved model does not contain `OUTPUT_DIM`, `OUTPUT_ACTIVATION`, or `INPUT_FEATURES`. If you load a model with other values, the outputs change: for example, a model trained with `OUTPUT_ACTIVATION: 'identity'` and loaded with the default `'sigmoid'` gives different outputs, and a smaller `OUTPUT_DIM` removes readout rows without an error. See [Pre-trained Models](./docs/OPTIONS.md#pre-trained-models).
 
 ### Advanced Configuration
 
@@ -160,7 +182,7 @@ console.log('Result:', result);
 import { GeneLSTM, EMutationPressure } from '@leoni4/gene-lstm-js';
 
 const glstm = new GeneLSTM(500, {
-    // Input configuration
+    // Input configuration (features per step of 2-D input)
     INPUT_FEATURES: 10,
 
     // Species parameters
@@ -267,6 +289,8 @@ new GeneLSTM(clients: number, options?: GeneLSTMOptions)
     }
     ```
 
+    The type also has `outputMode`. The library does not use it.
+
     **Returns (`IGlstmFitHistory`):**
 
     ```typescript
@@ -299,12 +323,14 @@ new GeneLSTM(clients: number, options?: GeneLSTMOptions)
 - `printSpecies()` - Print current species statistics
 - `adjustCP(speciesCount: number, generation?: number)` - Dynamically adjust compatibility parameter
 - `updateMutationPressure(currentBestFitness: number, generation?: number)` - Update mutation pressure based on progress
-- `model()` - Export the best model's architecture
+- `getMutationPressure(): { topology: number; weights: number }` - Multipliers of the current pressure level
+- `model(): GeneOptions` - Export the layers of the champion. If there is no champion, it exports the client with the highest `score`. It sorts `clients` by `score`.
 
 **Properties:**
 
 - `clients: Client[]` - All clients in the population
-- `champion: Client | null` - Best performing client ever seen
+- `champion: Client | null` - Copy of the client with the highest raw score (`scoreRaw`) seen in all generations
+- `runnerUp: Client | null` - Copy of the best client of the last generation after the complexity penalty
 - `mutationPressure: EMutationPressure` - Current mutation pressure level
 
 #### `Client`
@@ -316,11 +342,17 @@ Represents an individual neural network in the population.
 - `calculate(input: SeqInput): number[]` - Forward pass through the network
 - `mutate(force?: boolean)` - Mutate the client's genome
 - `distance(client: Client): number` - Calculate genetic distance to another client
+- `model(): GeneOptions` - Export the layers of this client (same format as `GeneLSTM.model()`)
 
 **Properties:**
 
 - `genome: Genome` - The LSTM architecture and weights
-- `score: number` - Fitness score (0-1)
+- `score: number` - Before `evolve()`: the fitness that you set (or that `fit()` sets). After `evolve()`: the normalized selection score (0-1), after the complexity penalty
+- `scoreRaw: number` - The fitness that `evolve()` received (your `score` plus tie-breaker noise smaller than 1e-9)
+- `adjustedScore: number` - `scoreRaw` minus the complexity penalty
+- `complexity: number` - Complexity value that the penalty uses
+- `error: number` - Error that `fit()` calculated
+- `bestScore: boolean` - `true` for the client with the highest `scoreRaw` in the generation; this client does not mutate and `kill` does not remove it
 - `species: Species | null` - Species membership
 
 #### `EMutationPressure`
@@ -343,8 +375,8 @@ Input format for LSTM calculations:
 type SeqInput = number[] | number[][];
 ```
 
-- **Scalar mode**: `number[]` - Single input vector
-- **Vector mode**: `number[][]` - Sequence of input vectors
+- **Scalar mode**: `number[]` - A sequence of T time steps with one scalar value in each step. `INPUT_FEATURES` has no effect on this input.
+- **Vector mode**: `number[][]` - A sequence of T time steps; each step is a row of features. Each row must have `INPUT_FEATURES` values. During `calculate()`, a unit whose input-weight count is not equal to the row width gets new random input weights, without an error. New sleeping blocks and weight mutations on a unit without input weights create `INPUT_FEATURES` input weights, so with a wrong `INPUT_FEATURES` these weights become random weights.
 
 #### `GeneLSTMOptions`
 

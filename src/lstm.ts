@@ -426,8 +426,8 @@ export class LSTM {
             potentialLongMemory: this._potentialLongMemory.map(blockToOptions),
             shortMemoryToRemember: this._shortMemoryToRemember.map(blockToOptions),
 
-            readoutW: [...this.readoutW],
-            readoutB: this.readoutB,
+            readoutW: this.readoutW.map(row => [...row]),
+            readoutB: [...this.readoutB],
 
             alpha: this._alpha,
         };

@@ -258,18 +258,24 @@ export class LSTM {
         this.longMemory.fill(0);
         this.shortMemory.fill(0);
 
-        const fullSeqMemory: number[][] = [];
+        const D = this._outputDim;
+        const fullSeqMemory: number[] | null = fullSeq ? new Array(input.length * D) : null;
+        let offset = 0;
 
         if (Array.isArray(input[0])) {
             const seq = input as number[][];
             for (const x_t of seq) {
                 if (Array.isArray(x_t)) this._predictUnitVector(x_t);
                 else this._predictUnit(x_t);
-                if (fullSeq) fullSeqMemory.push(this._readout());
+                if (fullSeqMemory) {
+                    this._readoutInto(fullSeqMemory, offset);
+                    offset += D;
+                }
             }
 
+            if (fullSeqMemory) return fullSeqMemory;
+
             const y = this._readout();
-            if (fullSeq) return fullSeqMemory.flat();
 
             const last = seq.length ? seq[seq.length - 1] : [0];
             const yPrev = typeof last[0] === 'number' ? last[0] : 0;
@@ -284,12 +290,17 @@ export class LSTM {
 
         const seq = input as number[];
         for (const num of seq) {
-            this._predictUnit(num);
-            if (fullSeq) fullSeqMemory.push(this._readout());
+            if (Array.isArray(num)) this._predictUnitVector(num);
+            else this._predictUnit(num);
+            if (fullSeqMemory) {
+                this._readoutInto(fullSeqMemory, offset);
+                offset += D;
+            }
         }
 
+        if (fullSeqMemory) return fullSeqMemory;
+
         const y = this._readout();
-        if (fullSeq) return fullSeqMemory.flat();
 
         const lastIn = seq.length ? seq[seq.length - 1] : 0;
         const a = this._alpha;
@@ -302,7 +313,12 @@ export class LSTM {
 
     private _readout(): number[] {
         const output = new Array(this._outputDim);
+        this._readoutInto(output, 0);
 
+        return output;
+    }
+
+    private _readoutInto(output: number[], offset: number) {
         for (let j = 0; j < this._outputDim; j++) {
             let s = this.readoutB[j];
             for (let k = 0; k < this.shortMemory.length; k++) {
@@ -310,34 +326,36 @@ export class LSTM {
             }
 
             if (this._outputActivation === 'sigmoid') {
-                output[j] = sigmoid(s);
+                output[offset + j] = sigmoid(s);
             } else if (this._outputActivation === 'tanh') {
-                output[j] = Math.tanh(s);
+                output[offset + j] = Math.tanh(s);
             } else {
-                output[j] = s;
+                output[offset + j] = s;
             }
         }
-
-        return output;
     }
 
-    private _predictUnit(input: number | number[]) {
+    private _predictUnit(x: number) {
         const H = this.shortMemory.length;
+        const long = this.longMemory;
+        const short = this.shortMemory;
 
         for (let k = 0; k < H; k++) {
-            const hPrev = this.shortMemory[k];
+            const fb = this._forgetGate[k];
+            const ib = this._potentialLongToRem[k];
+            const gb = this._potentialLongMemory[k];
+            const ob = this._shortMemoryToRemember[k];
+            const hPrev = short[k];
 
-            const f = this._forgetGate[k].calculate(input, hPrev);
-            this.longMemory[k] *= f;
+            const f = sigmoid(fb.weight1 * hPrev + fb.weight2 * x + fb.bias);
+            long[k] *= f;
 
-            const i = this._potentialLongToRem[k].calculate(input, hPrev);
-            const g = this._potentialLongMemory[k].calculate(input, hPrev);
+            const i = sigmoid(ib.weight1 * hPrev + ib.weight2 * x + ib.bias);
+            const g = Math.tanh(gb.weight1 * hPrev + gb.weight2 * x + gb.bias);
+            long[k] += i * g;
 
-            this.longMemory[k] += i * g;
-
-            const o = this._shortMemoryToRemember[k].calculate(input, hPrev);
-
-            this.shortMemory[k] = Math.tanh(this.longMemory[k]) * o;
+            const o = sigmoid(ob.weight1 * hPrev + ob.weight2 * x + ob.bias);
+            short[k] = Math.tanh(long[k]) * o;
         }
     }
 

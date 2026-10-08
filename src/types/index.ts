@@ -102,6 +102,8 @@ export type CrossoverStructure = 'max' | 'fitter';
 
 export type WeightInSetup = 'lazy' | 'construct';
 
+export type SkipFeature = number | 'none';
+
 export interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
@@ -111,6 +113,7 @@ export interface GeneLSTMOptions {
     OUTPUT_ACTIVATION?: 'sigmoid' | 'tanh' | 'identity';
     inputCheck?: 'off' | 'warn' | 'throw';
     weightInSetup?: WeightInSetup;
+    skipFeature?: SkipFeature;
     SURVIVORS?: number;
     speciesSelection?: SpeciesSelection;
     MUTATION_RATE?: number;

@@ -298,8 +298,11 @@ export class LSTM {
 
             const y = this._readout();
 
+            const skipFeature = this._geneLstm.skipFeature;
+            if (skipFeature === 'none') return [...y];
+
             const last = seq.length ? seq[seq.length - 1] : [0];
-            const yPrev = typeof last[0] === 'number' ? last[0] : 0;
+            const yPrev = typeof last[skipFeature] === 'number' ? last[skipFeature] : 0;
 
             const a = this._alpha;
 
@@ -324,6 +327,8 @@ export class LSTM {
         if (fullSeqMemory) return fullSeqMemory;
 
         const y = this._readout();
+
+        if (this._geneLstm.skipFeature === 'none') return [...y];
 
         const lastIn = seq.length ? seq[seq.length - 1] : 0;
         const a = this._alpha;

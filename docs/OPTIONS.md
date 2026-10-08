@@ -62,7 +62,8 @@ interface GeneLSTMOptions {
     PROBABILITY_MUTATE_BIAS_SHIFT?: number;
     PROBABILITY_MUTATE_BIAS_RANDOM?: number;
 
-    // Alpha (skip connection) mutations
+    // Skip connection and alpha mutations
+    skipFeature?: number | 'none';
     ALPHA_SHIFT_STRENGTH?: number;
     PROBABILITY_MUTATE_ALPHA_SHIFT?: number;
 
@@ -589,14 +590,38 @@ output[0] = (1 − alpha) × x_last + alpha × y[0]
 
 - `y[0]` is readout output 0 of the last time step.
 - `x_last` is the last input value of the last block:
-    - genome with 1 block and 2-D input: feature 0 of the last time step;
+    - genome with 1 block and 2-D input: feature [`skipFeature`](#skipfeature) (default 0) of the last time step;
     - genome with 1 block and 1-D input: the last scalar step;
     - genome with 2 or more blocks: the last value that the block before gives (its output `OUTPUT_DIM − 1` of the last time step).
 - Outputs 1 to `OUTPUT_DIM − 1` have no skip term.
 
-So `alpha = 1` means no skip, and `alpha = 0` means that output 0 is equal to `x_last`. When `alpha < 1` in a genome with 1 block and 2-D input, feature 0 of the last step goes directly into output 0, so the order of the input features is part of the model.
+So `alpha = 1` means no skip, and `alpha = 0` means that output 0 is equal to `x_last`. When `alpha < 1` in a genome with 1 block and 2-D input, feature `skipFeature` of the last step goes directly into output 0, so the order of the input features is part of the model.
 
 Initial values: a new random block starts with `alpha = 1`. A new sleeping block starts with `sleepingBlockConfig.initialAlpha` (default `0.01`), so an appended sleeping block first gives almost the value of the block before. The alpha of the other blocks has no effect on the output, but it mutates and `model()` saves it.
+
+### `skipFeature`
+
+**Type:** `number | 'none'`  
+**Default:** `0`
+
+Selects the skip value `x_last` of the last block, or turns the skip term off.
+
+- A number: the index of the feature in the last time step, for a genome with 1 block and 2-D input. The value is changed to an integer `>= 0` (`Math.max(0, Math.floor(value))`). If the last row has no number at this index, `x_last` is 0. For 1-D input and for genomes with 2 or more blocks, a number has no effect: `x_last` is the last scalar value, as described above.
+- `'none'`: output 0 is `y[0]`. The last block does not use `alpha`.
+
+The option does not change mutation: `alpha` mutates and `model()` saves it in all modes, and the `Math.random` calls are the same. With the default `0`, the outputs are the same as in earlier versions.
+
+`model()` does not save `skipFeature`. Load a model with the `skipFeature` value of the training run, or it gives different outputs.
+
+**Example:**
+
+```typescript
+// Output 0 is the readout only; the input features have no direct path to the output
+const glstm = new GeneLSTM(100, {
+    INPUT_FEATURES: 8,
+    skipFeature: 'none',
+});
+```
 
 ### `ALPHA_SHIFT_STRENGTH`
 
@@ -1186,9 +1211,10 @@ Models saved by version 1.0.10 or earlier do not contain these fields. For them,
 - `OUTPUT_ACTIVATION`: a different value gives different outputs.
 - `OUTPUT_DIM`: a smaller value removes readout rows without an error; a larger value adds rows with zero weights.
 
-**Option that `model()` does not save:**
+**Options that `model()` does not save:**
 
 - `INPUT_FEATURES`: it does not change the outputs of the loaded weights, but new sleeping blocks and some weight mutations use it (see [`INPUT_FEATURES`](#input_features)).
+- `skipFeature`: a different value can give different outputs when the last block has `alpha < 1` (see [`skipFeature`](#skipfeature)).
 
 **Model Format:**
 

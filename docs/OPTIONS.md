@@ -38,6 +38,7 @@ interface GeneLSTMOptions {
     OUTPUT_DIM?: number;
     OUTPUT_ACTIVATION?: 'sigmoid' | 'tanh' | 'identity';
     inputCheck?: 'off' | 'warn' | 'throw';
+    weightInSetup?: 'lazy' | 'construct';
     SURVIVORS?: number;
     speciesSelection?: 'legacy' | 'proportional';
     MUTATION_RATE?: number;
@@ -192,6 +193,37 @@ const glstm = new GeneLSTM(100, {
 
 glstm.clients[0].calculate([[0.5, 0.3, 0.8]]); // OK
 glstm.clients[0].calculate([[0.5, 0.3]]); // Error: input row has 2 features, but INPUT_FEATURES is 3. ...
+```
+
+### `weightInSetup`
+
+**Type:** `'lazy' | 'construct'`  
+**Default:** `'lazy'`
+
+Sets when a gate unit gets its input weights (`weightIn`, one weight for each feature of a 2-D input row).
+
+- `'lazy'`: the behaviour of earlier versions. A new unit has no input weights. The first `calculate()` with 2-D input (`number[][]`) creates them with random values in `[-1, 1]`, or a weight mutation on the unit creates `INPUT_FEATURES` of them. Thus:
+    - `calculate()` changes the genome the first time.
+    - `model()` before the first `calculate()` saves units without `weightIn`. Each load of such a model gets new random input weights at its first `calculate()`, so two loads give different outputs.
+    - Loaded clients that share a model without `weightIn` each get different input weights.
+- `'construct'`: each new unit gets `INPUT_FEATURES` input weights (random values in `[-1, 1]`) when it is created. This applies to the units of new random genomes, to units added by mutation, and to loaded units (`loadData`) without `weightIn`. Loaded units get them at load time, before the copies for the other loaded clients are made, so all loaded clients get the same input weights. Then `calculate()` with rows of `INPUT_FEATURES` values does not change the genome and does not use `Math.random`, and `model()` always saves `weightIn`.
+
+Loaded units that have `weightIn` keep it in both modes. [Sleeping blocks](#sleeping-block-configuration) always get input weights when they are created.
+
+With `'construct'`, the `Math.random` calls for the input weights occur when the units are created, not at the first `calculate()`. Thus a run with a seeded `Math.random` gives different results than the same run with `'lazy'`. Blocks after the first block also get input weights, but they get scalar input and do not use them. Each block keeps 4 × units × `INPUT_FEATURES` more numbers in memory and in `model()`.
+
+In both modes, a row whose width is not equal to the input-weight count of a unit replaces the input weights of that unit with random values. Use `'construct'` together with [`inputCheck`](#inputcheck) `'warn'` or `'throw'` to find a wrong `INPUT_FEATURES`.
+
+**Example:**
+
+```typescript
+const glstm = new GeneLSTM(100, {
+    INPUT_FEATURES: 3,
+    weightInSetup: 'construct',
+    inputCheck: 'throw',
+});
+
+const saved = glstm.clients[0].model(); // every unit has weightIn of length 3
 ```
 
 ---

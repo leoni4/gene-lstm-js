@@ -111,7 +111,10 @@ export class LSTM {
         const makeBlock = (
             act: ActivationName,
             u?: { weight1?: number; weight2?: number; bias?: number; weightIn?: number[] },
-        ) => new ShortMemoryBlock(act, u?.weight1, u?.weight2, u?.bias, u?.weightIn ? [...u.weightIn] : undefined);
+        ) =>
+            this._setUpWeightIn(
+                new ShortMemoryBlock(act, u?.weight1, u?.weight2, u?.bias, u?.weightIn ? [...u.weightIn] : undefined),
+            );
 
         if (options) {
             this._forgetGate = new Array(H).fill(0).map((_, i) => makeBlock('sigmoid', options.forgetGate[i]));
@@ -148,10 +151,16 @@ export class LSTM {
                 }
             }
         } else {
-            this._forgetGate = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
-            this._potentialLongToRem = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
-            this._potentialLongMemory = new Array(H).fill(0).map(() => new ShortMemoryBlock('tanh'));
-            this._shortMemoryToRemember = new Array(H).fill(0).map(() => new ShortMemoryBlock('sigmoid'));
+            this._forgetGate = new Array(H).fill(0).map(() => this._setUpWeightIn(new ShortMemoryBlock('sigmoid')));
+            this._potentialLongToRem = new Array(H)
+                .fill(0)
+                .map(() => this._setUpWeightIn(new ShortMemoryBlock('sigmoid')));
+            this._potentialLongMemory = new Array(H)
+                .fill(0)
+                .map(() => this._setUpWeightIn(new ShortMemoryBlock('tanh')));
+            this._shortMemoryToRemember = new Array(H)
+                .fill(0)
+                .map(() => this._setUpWeightIn(new ShortMemoryBlock('sigmoid')));
 
             const eps = 0.2;
             this.readoutW = new Array(this._outputDim)
@@ -185,7 +194,7 @@ export class LSTM {
         if (!this.shortMemory || this.shortMemory.length !== H) this.shortMemory = new Array(H).fill(0);
 
         const ensureGate = (gate: ShortMemoryBlock[], activation: ActivationName) => {
-            while (gate.length < H) gate.push(new ShortMemoryBlock(activation));
+            while (gate.length < H) gate.push(this._setUpWeightIn(new ShortMemoryBlock(activation)));
             while (gate.length > H) gate.pop();
         };
 
@@ -252,6 +261,12 @@ export class LSTM {
             const n = this._geneLstm.INPUT_FEATURES ?? 1;
             block.weightIn = new Array(n).fill(0).map(() => Math.random() * 2 - 1);
         }
+    }
+
+    private _setUpWeightIn(block: ShortMemoryBlock): ShortMemoryBlock {
+        if (this._geneLstm.weightInSetup === 'construct') this._ensureWeightIn(block);
+
+        return block;
     }
 
     calculate(input: number[] | number[][], fullSeq = false): number[] {
@@ -552,10 +567,10 @@ export class LSTM {
     private _mutateAddUnit() {
         this._ensureConsistentSizes();
 
-        this._forgetGate.push(new ShortMemoryBlock('sigmoid'));
-        this._potentialLongToRem.push(new ShortMemoryBlock('sigmoid'));
-        this._potentialLongMemory.push(new ShortMemoryBlock('tanh'));
-        this._shortMemoryToRemember.push(new ShortMemoryBlock('sigmoid'));
+        this._forgetGate.push(this._setUpWeightIn(new ShortMemoryBlock('sigmoid')));
+        this._potentialLongToRem.push(this._setUpWeightIn(new ShortMemoryBlock('sigmoid')));
+        this._potentialLongMemory.push(this._setUpWeightIn(new ShortMemoryBlock('tanh')));
+        this._shortMemoryToRemember.push(this._setUpWeightIn(new ShortMemoryBlock('sigmoid')));
 
         this.longMemory.push(0);
         this.shortMemory.push(0);

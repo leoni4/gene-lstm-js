@@ -13,6 +13,7 @@ import type {
     CompactTrigger,
     StagnationReference,
     CrossoverStructure,
+    WeightInSetup,
     MutationPressureType,
 } from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST, IGlstmFitOptions, IGlstmFitHistory } from './types/index.js';
@@ -46,6 +47,7 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         OUTPUT_DIM: options?.OUTPUT_DIM ?? 1,
         OUTPUT_ACTIVATION: options?.OUTPUT_ACTIVATION ?? 'sigmoid',
         inputCheck: options?.inputCheck ?? 'off',
+        weightInSetup: options?.weightInSetup ?? 'lazy',
 
         SURVIVORS: options?.SURVIVORS ?? 0.6,
         speciesSelection: options?.speciesSelection ?? 'legacy',
@@ -125,6 +127,7 @@ export class GeneLSTM {
     private _OUTPUT_DIM: number;
     private _OUTPUT_ACTIVATION: 'sigmoid' | 'tanh' | 'identity';
     private _inputCheck: 'off' | 'warn' | 'throw';
+    private _weightInSetup: WeightInSetup;
 
     private _CP: number;
     private _C1: number;
@@ -221,6 +224,7 @@ export class GeneLSTM {
         this._OUTPUT_DIM = o.OUTPUT_DIM;
         this._OUTPUT_ACTIVATION = o.OUTPUT_ACTIVATION;
         this._inputCheck = o.inputCheck;
+        this._weightInSetup = o.weightInSetup;
 
         this._SURVIVORS = o.SURVIVORS;
         this._speciesSelection = o.speciesSelection;
@@ -311,6 +315,10 @@ export class GeneLSTM {
 
     get inputCheck() {
         return this._inputCheck;
+    }
+
+    get weightInSetup() {
+        return this._weightInSetup;
     }
 
     get CP() {

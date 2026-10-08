@@ -100,6 +100,8 @@ export type StagnationReference = 'bestEver' | 'rolling';
 
 export type CrossoverStructure = 'max' | 'fitter';
 
+export type WeightInSetup = 'lazy' | 'construct';
+
 export interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
@@ -108,6 +110,7 @@ export interface GeneLSTMOptions {
     OUTPUT_DIM?: number;
     OUTPUT_ACTIVATION?: 'sigmoid' | 'tanh' | 'identity';
     inputCheck?: 'off' | 'warn' | 'throw';
+    weightInSetup?: WeightInSetup;
     SURVIVORS?: number;
     speciesSelection?: SpeciesSelection;
     MUTATION_RATE?: number;

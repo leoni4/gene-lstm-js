@@ -129,18 +129,17 @@ export interface GeneLSTMOptions {
     crossoverStructure?: CrossoverStructure;
     MAX_LAYERS?: number;
     MAX_UNITS_PER_LAYER?: number;
+    frontStructureChanges?: boolean;
     PROBABILITY_MUTATE_READOUT_W?: number;
     PROBABILITY_MUTATE_READOUT_B?: number;
     sleepingBlockConfig?: Partial<SleepingBlockConfig>;
     loadData?: GeneOptions;
     loadPercent?: number;
-    // Dynamic CP adjustment parameters
     targetSpecies?: number;
     cpAdjustRate?: number;
     cpDeadband?: number;
     minCP?: number;
     maxCP?: number;
-    // Mutation pressure parameters
     mutationPressure?: EMutationPressure;
     enablePressureEscalation?: boolean;
     stagnationThreshold?: number;

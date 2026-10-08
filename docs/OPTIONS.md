@@ -69,6 +69,7 @@ interface GeneLSTMOptions {
     PROBABILITY_MUTATE_LSTM_BLOCK?: number;
     PROBABILITY_ADD_BLOCK_APPEND?: number;
     PROBABILITY_REMOVE_BLOCK?: number;
+    frontStructureChanges?: boolean;
     PROBABILITY_MUTATE_ADD_UNIT?: number;
     PROBABILITY_MUTATE_REMOVE_UNIT?: number;
 
@@ -605,8 +606,8 @@ Topology mutations modify the network architecture itself.
 Probability of attempting a block-level mutation (add or remove). For each genome, the probability is `PROBABILITY_MUTATE_LSTM_BLOCK × MUTATION_RATE × t` (`t` = topology multiplier of the mutation pressure). When the mutation occurs:
 
 1. It selects "remove" with the probability `min(PROBABILITY_REMOVE_BLOCK × t, 0.9)`.
-2. If it selects "remove" and the genome has 2 or more blocks, it removes the last block or the first block (50% each).
-3. In all other cases (also "remove" with only 1 block), it adds a sleeping block: at the end with the probability `PROBABILITY_ADD_BLOCK_APPEND`, else at the start. A genome with [`MAX_LAYERS`](#max_layers) or more blocks does not get a block.
+2. If it selects "remove" and the genome has 2 or more blocks, it removes the last block or the first block (50% each). With [`frontStructureChanges: false`](#frontstructurechanges), it always removes the last block.
+3. In all other cases (also "remove" with only 1 block), it adds a sleeping block: at the end with the probability `PROBABILITY_ADD_BLOCK_APPEND`, else at the start. With `frontStructureChanges: false`, it always adds the block at the end. A genome with [`MAX_LAYERS`](#max_layers) or more blocks does not get a block.
 
 **Example:**
 
@@ -625,7 +626,7 @@ const glstm = new GeneLSTM(300, {
 
 When adding a block, probability of appending it at the end. Otherwise the block is added at the start (prepend).
 
-**Note on prepend:** a new sleeping block has zero readout weights and a zero readout bias. When it is added at the start, it gives a constant sequence to the old first block, so the output of the model does not depend on the input until readout mutations change these weights. Set `PROBABILITY_ADD_BLOCK_APPEND: 1` to disable prepend.
+**Note on prepend:** a new sleeping block has zero readout weights and a zero readout bias. When it is added at the start, it gives a constant sequence to the old first block, so the output of the model does not depend on the input until readout mutations change these weights. Set `PROBABILITY_ADD_BLOCK_APPEND: 1` or [`frontStructureChanges: false`](#frontstructurechanges) to disable prepend.
 
 ### `PROBABILITY_REMOVE_BLOCK`
 
@@ -633,7 +634,7 @@ When adding a block, probability of appending it at the end. Otherwise the block
 **Default:** `0.1`  
 **Range:** `0.0` - `1.0`
 
-Probability of removing a block when block mutation occurs. The probability is multiplied by the topology multiplier of the mutation pressure and is limited to `0.9`. A genome with 1 block adds a block instead. The removed block is the last block or the first block (50% each); when the first block is removed, the old second block gets the user input directly.
+Probability of removing a block when block mutation occurs. The probability is multiplied by the topology multiplier of the mutation pressure and is limited to `0.9`. A genome with 1 block adds a block instead. The removed block is the last block or the first block (50% each); when the first block is removed, the old second block gets the user input directly. [`frontStructureChanges: false`](#frontstructurechanges) disables the removal of the first block.
 
 **Example:**
 
@@ -648,6 +649,29 @@ const glstm = new GeneLSTM(300, {
 const glstm = new GeneLSTM(300, {
     PROBABILITY_ADD_BLOCK_APPEND: 0.7,
     PROBABILITY_REMOVE_BLOCK: 0.3,
+});
+```
+
+### `frontStructureChanges`
+
+**Type:** `boolean`  
+**Default:** `true`
+
+Allows block mutations at the start of the genome. With `true` (behaviour of earlier versions), a block mutation can add a block at the start (prepend) and can remove the first block. Both changes usually break the model: a prepended sleeping block gives a constant sequence to the old first block, and after a front removal the old second block gets the user input that it was not trained on.
+
+With `false`:
+
+- A prepend becomes an append (the block is added at the end).
+- A removal of the first block becomes a removal of the last block.
+
+The random decisions of the block mutation stay the same; only their result changes. Thus the first block of a genome is never replaced or removed by block mutation. Crossover does not use this option.
+
+**Example:**
+
+```typescript
+// Change the structure only at the end of the genome
+const glstm = new GeneLSTM(300, {
+    frontStructureChanges: false,
 });
 ```
 

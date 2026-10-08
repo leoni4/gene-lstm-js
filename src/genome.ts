@@ -128,14 +128,15 @@ export class Genome {
             const shouldRemove = Math.random() < Math.min(scaledRemoveProb, 0.9);
 
             if (shouldRemove && this._lstmArray.length > 1) {
-                const removeFromEnd = Math.random() < 0.5;
+                const removeFromEnd = Math.random() < 0.5 || !this._glstm.frontStructureChanges;
                 if (removeFromEnd) {
                     this._lstmArray.pop();
                 } else {
                     this._lstmArray.shift();
                 }
             } else {
-                const shouldAppend = Math.random() < this._glstm.PROBABILITY_ADD_BLOCK_APPEND;
+                const shouldAppend =
+                    Math.random() < this._glstm.PROBABILITY_ADD_BLOCK_APPEND || !this._glstm.frontStructureChanges;
 
                 if (this._lstmArray.length < this._glstm.MAX_LAYERS) {
                     if (shouldAppend) {

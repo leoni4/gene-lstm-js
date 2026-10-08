@@ -79,6 +79,7 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         crossoverStructure: options?.crossoverStructure ?? 'max',
         MAX_LAYERS: options?.MAX_LAYERS ?? Infinity,
         MAX_UNITS_PER_LAYER: options?.MAX_UNITS_PER_LAYER ?? Infinity,
+        frontStructureChanges: options?.frontStructureChanges ?? true,
 
         PROBABILITY_MUTATE_READOUT_W: options?.PROBABILITY_MUTATE_READOUT_W ?? 1,
         PROBABILITY_MUTATE_READOUT_B: options?.PROBABILITY_MUTATE_READOUT_B ?? 0.6,
@@ -159,6 +160,7 @@ export class GeneLSTM {
     private _crossoverStructure: CrossoverStructure;
     private _MAX_LAYERS: number;
     private _MAX_UNITS_PER_LAYER: number;
+    private _frontStructureChanges: boolean;
     private _PROBABILITY_MUTATE_READOUT_W: number;
     private _PROBABILITY_MUTATE_READOUT_B: number;
 
@@ -252,6 +254,7 @@ export class GeneLSTM {
         this._crossoverStructure = o.crossoverStructure;
         this._MAX_LAYERS = Math.max(1, Math.floor(o.MAX_LAYERS));
         this._MAX_UNITS_PER_LAYER = Math.max(1, Math.floor(o.MAX_UNITS_PER_LAYER));
+        this._frontStructureChanges = o.frontStructureChanges;
 
         this._PROBABILITY_MUTATE_READOUT_W = o.PROBABILITY_MUTATE_READOUT_W;
         this._PROBABILITY_MUTATE_READOUT_B = o.PROBABILITY_MUTATE_READOUT_B;
@@ -384,6 +387,9 @@ export class GeneLSTM {
     }
     get MAX_UNITS_PER_LAYER() {
         return this._MAX_UNITS_PER_LAYER;
+    }
+    get frontStructureChanges() {
+        return this._frontStructureChanges;
     }
     get PROBABILITY_MUTATE_READOUT_W() {
         return this._PROBABILITY_MUTATE_READOUT_W;

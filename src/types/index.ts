@@ -92,6 +92,8 @@ export interface IGlstmFitHistory {
     stoppedEarly: boolean;
 }
 
+export type SpeciesSelection = 'legacy' | 'proportional';
+
 export interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
@@ -101,6 +103,7 @@ export interface GeneLSTMOptions {
     OUTPUT_ACTIVATION?: 'sigmoid' | 'tanh' | 'identity';
     inputCheck?: 'off' | 'warn' | 'throw';
     SURVIVORS?: number;
+    speciesSelection?: SpeciesSelection;
     MUTATION_RATE?: number;
     BIAS_SHIFT_STRENGTH?: number;
     BIAS_RANDOM_STRENGTH?: number;

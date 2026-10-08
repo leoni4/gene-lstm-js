@@ -1,12 +1,15 @@
 import { Species } from './species.js';
+import type { SpeciesSelection } from './types/index.js';
 
 export class RandomSelector {
     private _objects: Array<Species> = [];
     private _survivors: number;
+    private _mode: SpeciesSelection;
     private _totalScore = 0;
 
-    constructor(survivors: number) {
+    constructor(survivors: number, mode: SpeciesSelection = 'legacy') {
         this._survivors = survivors;
+        this._mode = mode;
     }
 
     get objects(): Array<Species> {
@@ -26,7 +29,10 @@ export class RandomSelector {
     }
 
     random(): Species {
-        const randomScore = Math.abs(Math.random() * this._totalScore * this._survivors);
+        const randomScore =
+            this._mode === 'proportional'
+                ? Math.abs(Math.random() * this._totalScore)
+                : Math.abs(Math.random() * this._totalScore * this._survivors);
         let scoreIndex = 0;
         for (let i = 0; i < this._objects.length; i++) {
             scoreIndex += Math.abs(this._objects[i].score);

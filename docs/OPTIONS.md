@@ -38,6 +38,7 @@ interface GeneLSTMOptions {
     OUTPUT_ACTIVATION?: 'sigmoid' | 'tanh' | 'identity';
     inputCheck?: 'off' | 'warn' | 'throw';
     SURVIVORS?: number;
+    speciesSelection?: 'legacy' | 'proportional';
     MUTATION_RATE?: number;
 
     // Selection score and complexity penalty
@@ -263,7 +264,7 @@ Fraction of each species that survives each generation. The rest are replaced by
 
 Exact rule: each species sorts its clients by `score` and keeps the first ⌊`SURVIVORS` × n⌋ + 1 clients (n = species size, at most n clients). It never removes the client with the highest raw score of the generation (`bestScore`). So with `SURVIVORS: 0.6`, a species of 10 clients keeps 7 clients.
 
-The same value also changes how parent species are selected: the random value of the score-proportional selection is multiplied by `SURVIVORS`, so with a value below 1 the species with the highest scores are selected more often than their score share.
+With the default [`speciesSelection: 'legacy'`](#speciesselection), the same value also changes how parent species are selected: the random value of the score-proportional selection is multiplied by `SURVIVORS`. So with a value below 1, only the species with the highest scores are selected, and the species after the first `SURVIVORS` share of the total species score are never selected.
 
 **Example:**
 
@@ -284,6 +285,27 @@ const glstm = new GeneLSTM(300, {
 - **0.7-0.8**: Stable, slow evolution
 - **0.5-0.6**: Balanced (recommended)
 - **0.3-0.4**: Fast, exploratory
+
+### `speciesSelection`
+
+**Type:** `'legacy' | 'proportional'`  
+**Default:** `'legacy'`
+
+Sets how `evolve()` selects the parent species for each new client. Each species has a score: the mean normalized `score` (0 to 1) of its clients. The species are sorted by score, highest first. For each pick, the library draws a random value r and selects the first species where the running sum of species scores is at least r.
+
+- `'legacy'`: r is in `[0, total × SURVIVORS)`. The behaviour of earlier versions. Only the species with the highest scores breed. For example, with 5 species of equal score and `SURVIVORS: 0.6`, the first 3 species each get about 1/3 of the picks, and the last 2 species get no picks.
+- `'proportional'`: r is in `[0, total)`. Each species is selected in proportion to its score share. In the example above, each species gets about 20% of the picks.
+
+Both modes use one `Math.random()` call for each pick, so the random sequence of the rest of the run stays aligned. The parents inside a species are selected in the same way in both modes.
+
+**Example:**
+
+```typescript
+// Let weaker species breed too (protects new structures)
+const glstm = new GeneLSTM(300, {
+    speciesSelection: 'proportional',
+});
+```
 
 ### `MUTATION_RATE`
 

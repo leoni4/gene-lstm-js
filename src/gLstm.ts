@@ -4,7 +4,7 @@ import { Genome } from './genome.js';
 import type { LSTM } from './lstm.js';
 import { RandomSelector } from './randomSelector.js';
 
-import type { GeneOptions, SleepingBlockConfig, SeqInput, GeneLSTMOptions } from './types/index.js';
+import type { GeneOptions, SleepingBlockConfig, SeqInput, GeneLSTMOptions, SpeciesSelection } from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST, IGlstmFitOptions, IGlstmFitHistory } from './types/index.js';
 import { computeLoss, isY2D, mean, variance } from './helpers/index.js';
 
@@ -38,6 +38,7 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         inputCheck: options?.inputCheck ?? 'off',
 
         SURVIVORS: options?.SURVIVORS ?? 0.6,
+        speciesSelection: options?.speciesSelection ?? 'legacy',
         MUTATION_RATE: options?.MUTATION_RATE ?? 1,
 
         OPT_ERR_THRESHOLD: options?.OPT_ERR_THRESHOLD ?? 0.005,
@@ -109,6 +110,7 @@ export class GeneLSTM {
     private _C2: number;
 
     private _SURVIVORS: number;
+    private _speciesSelection: SpeciesSelection;
     private _MUTATION_RATE: number;
 
     private _OPT_ERR_THRESHOLD: number;
@@ -188,6 +190,7 @@ export class GeneLSTM {
         this._inputCheck = o.inputCheck;
 
         this._SURVIVORS = o.SURVIVORS;
+        this._speciesSelection = o.speciesSelection;
         this._MUTATION_RATE = o.MUTATION_RATE;
 
         this._OPT_ERR_THRESHOLD = Math.max(0, o.OPT_ERR_THRESHOLD);
@@ -272,6 +275,9 @@ export class GeneLSTM {
 
     get SURVIVORS() {
         return this._SURVIVORS;
+    }
+    get speciesSelection() {
+        return this._speciesSelection;
     }
     get MUTATION_RATE() {
         return this._MUTATION_RATE;
@@ -1009,7 +1015,7 @@ export class GeneLSTM {
     }
 
     private _reproduce() {
-        const selector = new RandomSelector(this._SURVIVORS);
+        const selector = new RandomSelector(this._SURVIVORS, this._speciesSelection);
         for (let i = 0; i < this._species.length; i += 1) {
             selector.add(this._species[i]);
         }

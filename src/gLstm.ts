@@ -1,6 +1,7 @@
 import { Client } from './client.js';
 import { Species } from './species.js';
 import { Genome } from './genome.js';
+import type { LSTM } from './lstm.js';
 import { RandomSelector } from './randomSelector.js';
 
 import type { GeneOptions, SleepingBlockConfig, SeqInput, GeneLSTMOptions } from './types/index.js';
@@ -1021,6 +1022,7 @@ export class GeneLSTM {
         for (let i = 0; i < this._species.length; i += 1) {
             this._species[i].reset();
         }
+        const flatCache = new Map<LSTM, number[]>();
         for (let i = 0; i < this._clients.length; i += 1) {
             const c = this._clients[i];
             if (c.species !== null) {
@@ -1030,7 +1032,7 @@ export class GeneLSTM {
             let found = false;
             for (let k = 0; k < this._species.length; k += 1) {
                 const s = this._species[k];
-                if (s.put(c)) {
+                if (s.put(c, false, flatCache)) {
                     found = true;
                     break;
                 }

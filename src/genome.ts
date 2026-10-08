@@ -26,7 +26,18 @@ export class Genome {
         return this._lstmArray;
     }
 
-    distance(g2passed: Genome): number {
+    distance(g2passed: Genome, cache?: Map<LSTM, number[]>): number {
+        const flatten = (lstm: LSTM): number[] => {
+            if (!cache) return lstm.flattenWeights();
+            let w = cache.get(lstm);
+            if (!w) {
+                w = lstm.flattenWeights();
+                cache.set(lstm, w);
+            }
+
+            return w;
+        };
+
         let g1: Genome = this;
         let g2 = g2passed;
 
@@ -45,8 +56,8 @@ export class Genome {
             const block2 = g2.lstmArray[i];
 
             if (block1 && block2) {
-                const w1 = block1.flattenWeights();
-                const w2 = block2.flattenWeights();
+                const w1 = flatten(block1);
+                const w2 = flatten(block2);
 
                 const len = Math.min(w1.length, w2.length);
                 let blockDiffSum = 0;
@@ -67,10 +78,6 @@ export class Genome {
         return this._glstm.C1 * excess + this._glstm.C2 * weightDiff;
     }
 
-    /**
-     * Creates a "sleeping block" - a new LSTM block initialized to be nearly transparent
-     * to preserve the parent's learned behavior during structural mutations
-     */
     private _createSleepingBlock(): LSTM {
         const cfg = this._glstm.sleepingBlockConfig;
         const eps = cfg.epsilon;
@@ -87,7 +94,7 @@ export class Genome {
             weightIn: new Array(inputN).fill(0).map(randSmall),
         });
 
-        const H = 1; // sleeping block starts minimal & non-destructive
+        const H = 1; 
 
         const options: LstmOptions = {
             hiddenSize: H,
@@ -97,7 +104,6 @@ export class Genome {
             potentialLongMemory: new Array(H).fill(0).map(() => makeUnit(cfg.candidateBias)),
             shortMemoryToRemember: new Array(H).fill(0).map(() => makeUnit(cfg.outputBias)),
 
-            // Multi-output: new unit should initially have ~0 influence on final output
             readoutW: new Array(outputDim).fill(0).map(() => new Array(H).fill(0)),
             readoutB: new Array(outputDim).fill(0),
 
@@ -109,32 +115,19 @@ export class Genome {
         return new LSTM(this._glstm, options);
     }
 
-    /**
-     * Structural mutation with directional bias:
-     * - 92% chance to APPEND (add to end) - preserves learned representations
-     * - 8% chance to PREPEND (add to beginning) - explores new input transformations
-     * - 10% chance to REMOVE (if depth > 1)
-     *
-     * Mutation pressure scaling:
-     * - Topology pressure scales the probability of structural mutations (add/remove blocks)
-     */
     mutate() {
-        // Mutate parameters of existing blocks
         this._lstmArray.forEach(lstm => {
             lstm.mutate();
         });
 
-        // Apply topology mutation pressure to structural mutations
         const pressure = this._glstm.getMutationPressure();
         const structProb = this._glstm.PROBABILITY_MUTATE_LSTM_BLOCK * this._glstm.MUTATION_RATE * pressure.topology;
 
         if (structProb > Math.random()) {
-            // Decide whether to add or remove (remove probability also scaled by topology pressure)
             const scaledRemoveProb = this._glstm.PROBABILITY_REMOVE_BLOCK * pressure.topology;
-            const shouldRemove = Math.random() < Math.min(scaledRemoveProb, 0.9); // Cap at 90% to avoid too aggressive pruning
+            const shouldRemove = Math.random() < Math.min(scaledRemoveProb, 0.9);
 
             if (shouldRemove && this._lstmArray.length > 1) {
-                // Remove block from either end
                 const removeFromEnd = Math.random() < 0.5;
                 if (removeFromEnd) {
                     this._lstmArray.pop();
@@ -142,14 +135,11 @@ export class Genome {
                     this._lstmArray.shift();
                 }
             } else {
-                // Add sleeping block
                 const shouldAppend = Math.random() < this._glstm.PROBABILITY_ADD_BLOCK_APPEND;
 
                 if (shouldAppend) {
-                    // APPEND: add to end (90-95% of additions)
                     this._lstmArray.push(this._createSleepingBlock());
                 } else {
-                    // PREPEND: add to beginning (5-10% of additions)
                     this._lstmArray.unshift(this._createSleepingBlock());
                 }
             }
@@ -217,7 +207,6 @@ export class Genome {
                         if (k < minH) {
                             out.push(Genome.crossGateUnit(ga[k], gb[k]));
                         } else {
-                            // excess unit: inherit from whichever parent has it
                             const hasA = k < ga.length;
                             const hasB = k < gb.length;
                             if (hasA && hasB) out.push(Math.random() < 0.5 ? ga[k] : gb[k]);
@@ -229,7 +218,6 @@ export class Genome {
                     return out;
                 };
 
-                // Cross readout weights (multi-output support)
                 const aReadoutW = a.readoutW as number[][];
                 const bReadoutW = b.readoutW as number[][];
                 const aReadoutB = a.readoutB as number[];
@@ -275,7 +263,6 @@ export class Genome {
                     alpha: Math.random() < 0.5 ? a.alpha : b.alpha,
                 });
             } else {
-                // Only one parent has this block
                 const use1 = block1 && (!block2 || Math.random() < 0.75);
                 geneOptions.push(use1 ? block1!.model() : block2!.model());
             }

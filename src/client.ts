@@ -1,5 +1,6 @@
 import { Genome } from './genome.js';
 import { Species } from './species.js';
+import type { LSTM } from './lstm.js';
 import type { SeqInput } from './types/index.js';
 
 export class Client {
@@ -8,21 +9,8 @@ export class Client {
     bestScore: boolean = false;
     error: number = 0;
     score: number = 0;
-    /**
-     * Fitness assigned by fit() or manually by the library user.
-     * Higher is better.
-     */
     scoreRaw = 0;
-
-    /**
-     * Raw fitness after applying the complexity penalty,
-     * before normalization into the selection score.
-     */
     adjustedScore = 0;
-
-    /**
-     * Cached structural complexity for the current generation.
-     */
     complexity = 0;
 
     constructor(LSTM: Genome) {
@@ -37,8 +25,8 @@ export class Client {
         this.genome.mutate();
     }
 
-    distance(client: Client): number {
-        return this.genome.distance(client.genome);
+    distance(client: Client, cache?: Map<LSTM, number[]>): number {
+        return this.genome.distance(client.genome, cache);
     }
 
     calculate(input: SeqInput): number[] {

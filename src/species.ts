@@ -1,5 +1,6 @@
 import { Client } from './client.js';
 import { Genome } from './genome.js';
+import type { LSTM } from './lstm.js';
 
 export class Species {
     private _representative: Client;
@@ -20,8 +21,8 @@ export class Species {
         return this._clients;
     }
 
-    put(client: Client, force = false): boolean {
-        if (force || client.distance(this._representative) < this._representative.genome.glstm.CP) {
+    put(client: Client, force = false, cache?: Map<LSTM, number[]>): boolean {
+        if (force || client.distance(this._representative, cache) < this._representative.genome.glstm.CP) {
             client.species = this;
             this._clients.push(client);
 

@@ -1044,8 +1044,17 @@ export class GeneLSTM {
 
             const replacedClient = this._clients[targetIndex];
 
-            if (replacedClient.species !== null) {
+            const replacedSpecies = replacedClient.species;
+
+            if (replacedSpecies !== null) {
+                replacedSpecies.remove(replacedClient);
                 replacedClient.species = null;
+
+                const speciesIndex = this._species.indexOf(replacedSpecies);
+
+                if (replacedSpecies.size() === 0 && speciesIndex !== -1) {
+                    this._species.splice(speciesIndex, 1);
+                }
             }
 
             const eliteCopy = this._copyClient(elites[i]);

@@ -11,6 +11,7 @@ import type {
     GeneLSTMOptions,
     SpeciesSelection,
     CompactTrigger,
+    StagnationReference,
     MutationPressureType,
 } from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST, IGlstmFitOptions, IGlstmFitHistory } from './types/index.js';
@@ -100,6 +101,8 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         panicMaxGenerations: options?.panicMaxGenerations ?? 30,
         panicCooldownGenerations: options?.panicCooldownGenerations ?? 60,
         compactTrigger: options?.compactTrigger ?? 'levelCounter',
+        stagnationReference: options?.stagnationReference ?? 'bestEver',
+        stagnationWindow: options?.stagnationWindow ?? 50,
 
         loadData: options?.loadData,
         loadPercent: options?.loadPercent || 0.5,
@@ -176,6 +179,9 @@ export class GeneLSTM {
     private _pressureMultipliers: Record<EMutationPressure, Record<MutationPressureType, number>>;
     private _compactTrigger: CompactTrigger;
     private _generationsSinceImprovement = 0;
+    private _stagnationReference: StagnationReference;
+    private _stagnationWindow: number;
+    private _rollingBestHistory: number[] = [];
 
     private _stagnationThresholdByPressure: Record<EMutationPressure, number>;
 
@@ -259,7 +265,6 @@ export class GeneLSTM {
         this._panicMaxGenerations = Math.max(1, Math.floor(o.panicMaxGenerations));
         this._panicCooldownGenerations = Math.max(0, Math.floor(o.panicCooldownGenerations));
         this._pressureTopologyBoost = o.pressureTopologyBoost;
-        // With the boost on, keep the exported table itself, so runtime edits of MUTATION_PRESSURE_CONST still apply.
         this._pressureMultipliers = this._pressureTopologyBoost
             ? MUTATION_PRESSURE_CONST
             : {
@@ -269,6 +274,8 @@ export class GeneLSTM {
                   [EMutationPressure.PANIC]: { ...MUTATION_PRESSURE_CONST.PANIC, topology: 1 },
               };
         this._compactTrigger = o.compactTrigger;
+        this._stagnationReference = o.stagnationReference;
+        this._stagnationWindow = Math.max(1, Math.floor(o.stagnationWindow));
 
         this._verbose = o.verbose;
 
@@ -393,6 +400,14 @@ export class GeneLSTM {
 
     get compactTrigger() {
         return this._compactTrigger;
+    }
+
+    get stagnationReference() {
+        return this._stagnationReference;
+    }
+
+    get stagnationWindow() {
+        return this._stagnationWindow;
     }
 
     get champion() {
@@ -732,6 +747,9 @@ export class GeneLSTM {
             this._panicCooldownCounter--;
         }
 
+        const rolling = this._stagnationReference === 'rolling';
+        const reference = rolling ? this._pushRollingBest(currentBestFitness) : this._bestFitnessEver;
+
         if (this._mutationPressure === EMutationPressure.PANIC) {
             this._panicCounter++;
 
@@ -754,17 +772,17 @@ export class GeneLSTM {
             }
         }
 
-        const firstObservation = !Number.isFinite(this._bestFitnessEver);
+        const firstObservation = !Number.isFinite(reference);
         const improvementThreshold = firstObservation
             ? 0
-            : Math.max(this._pressureImprovementAbs, Math.abs(this._bestFitnessEver) * this._pressureImprovementRel);
+            : Math.max(this._pressureImprovementAbs, Math.abs(reference) * this._pressureImprovementRel);
 
-        const hasImproved = firstObservation || currentBestFitness > this._bestFitnessEver + improvementThreshold;
+        const hasImproved = firstObservation || currentBestFitness > reference + improvementThreshold;
 
         if (hasImproved) {
             const oldPressure = this._mutationPressure;
 
-            this._bestFitnessEver = currentBestFitness;
+            this._bestFitnessEver = rolling ? Math.max(this._bestFitnessEver, currentBestFitness) : currentBestFitness;
             this._stagnationCounter = 0;
             this._generationsSinceImprovement = 0;
             this._panicCounter = 0;
@@ -892,6 +910,25 @@ export class GeneLSTM {
             );
         }
     }
+
+    private _pushRollingBest(value: number): number {
+        let max = -Infinity;
+
+        for (const v of this._rollingBestHistory) {
+            if (v > max) {
+                max = v;
+            }
+        }
+
+        this._rollingBestHistory.push(value);
+
+        if (this._rollingBestHistory.length > this._stagnationWindow) {
+            this._rollingBestHistory.shift();
+        }
+
+        return max;
+    }
+
     private _markBestRawClient(): Client {
         if (this._clients.length === 0) {
             throw new Error('Cannot select the best client from an empty population');

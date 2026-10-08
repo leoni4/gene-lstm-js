@@ -95,6 +95,8 @@ interface GeneLSTMOptions {
     panicMaxGenerations?: number;
     panicCooldownGenerations?: number;
     compactTrigger?: 'levelCounter' | 'sinceImprovement';
+    stagnationReference?: 'bestEver' | 'rolling';
+    stagnationWindow?: number;
 
     // Logging
     verbose?: number;
@@ -883,7 +885,7 @@ Generations without improvement before escalating pressure. The real threshold d
 | BOOST → ESCAPE | `2 × stagnationThreshold`       |
 | ESCAPE → PANIC | `4 × stagnationThreshold`       |
 
-The counter starts again from 0 after each level change. An improvement is a raw best score (`scoreRaw`) higher than the best score before plus `max(1e-6, |best| × 1e-3)`. The value is rounded down; values below `1` become `1`.
+The counter starts again from 0 after each level change. An improvement is a raw best score (`scoreRaw`) higher than the reference plus `max(1e-6, |reference| × 1e-3)`. By default, the reference is the best score before (see [`stagnationReference`](#stagnationreference)). The value is rounded down; values below `1` become `1`.
 
 **Example:**
 
@@ -993,6 +995,37 @@ const glstm = new GeneLSTM(300, {
     compactTrigger: 'sinceImprovement',
 });
 ```
+
+### `stagnationReference`
+
+**Type:** `'bestEver' | 'rolling'`  
+**Default:** `'bestEver'`
+
+Selects the reference for the improvement test of the escalation logic (see [`stagnationThreshold`](#stagnationthreshold)):
+
+- `'bestEver'`: the best raw score of all earlier generations that counted as an improvement. The behaviour of earlier versions.
+- `'rolling'`: the highest raw best score of the previous [`stagnationWindow`](#stagnationwindow) generations. The current generation is not in the window. A high score stops being the reference after `stagnationWindow` generations.
+
+Use `'rolling'` when the fitness of the same client can change between generations, for example when each generation uses a different data window. Then one lucky high score does not keep the pressure high for the rest of the run.
+
+With constant fitness, both modes give the same pressure levels. The mode does not change the champion (it is replaced only by a higher raw score), the champion re-insertion, or the 50-generation history of the COMPACT check.
+
+**Example:**
+
+```typescript
+// Fitness on a moving data window
+const glstm = new GeneLSTM(300, {
+    stagnationReference: 'rolling',
+    stagnationWindow: 30,
+});
+```
+
+### `stagnationWindow`
+
+**Type:** `number`  
+**Default:** `50`
+
+Number of previous generations in the window of `stagnationReference: 'rolling'`. Not used with `'bestEver'`. The value is rounded down; values below `1` become `1`.
 
 ---
 

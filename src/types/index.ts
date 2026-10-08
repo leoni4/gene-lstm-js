@@ -96,6 +96,8 @@ export type SpeciesSelection = 'legacy' | 'proportional';
 
 export type CompactTrigger = 'levelCounter' | 'sinceImprovement';
 
+export type StagnationReference = 'bestEver' | 'rolling';
+
 export interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
@@ -141,6 +143,8 @@ export interface GeneLSTMOptions {
     panicMaxGenerations?: number;
     panicCooldownGenerations?: number;
     compactTrigger?: CompactTrigger;
+    stagnationReference?: StagnationReference;
+    stagnationWindow?: number;
 
     verbose?: number;
     

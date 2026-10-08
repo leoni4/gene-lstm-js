@@ -91,6 +91,10 @@ interface GeneLSTMOptions {
     mutationPressure?: EMutationPressure;
     enablePressureEscalation?: boolean;
     stagnationThreshold?: number;
+    pressureTopologyBoost?: boolean;
+    panicMaxGenerations?: number;
+    panicCooldownGenerations?: number;
+    compactTrigger?: 'levelCounter' | 'sinceImprovement';
 
     // Logging
     verbose?: number;
@@ -864,6 +868,8 @@ enum EMutationPressure {
 
 Enable automatic pressure escalation when fitness stagnates.
 
+When `false`, the pressure level does not change: this also stops `COMPACT`, the automatic brake on growth. To stop only the larger topology multipliers of BOOST, ESCAPE and PANIC, use [`pressureTopologyBoost: false`](#pressuretopologyboost).
+
 ### `stagnationThreshold`
 
 **Type:** `number`  
@@ -901,8 +907,8 @@ const glstm = new GeneLSTM(300, {
 1. Start at initial pressure level. The first `evolve()` call always counts as an improvement, so a start at `COMPACT` changes to `NORMAL` at the first call.
 2. If fitness improves: reduce pressure by one level (PANIC → ESCAPE → BOOST → NORMAL; COMPACT → NORMAL)
 3. If stagnant: escalate (NORMAL → BOOST → ESCAPE → PANIC) after the thresholds in the table of [`stagnationThreshold`](#stagnationthreshold)
-4. PANIC has a timeout of 30 generations. Then the pressure changes to ESCAPE, and a cooldown of 60 generations starts. During the cooldown, the step ESCAPE → PANIC is blocked; each improvement halves the remaining cooldown. The cooldown counts down in each generation, and ESCAPE → PANIC needs `4 × stagnationThreshold` generations without improvement, so the cooldown blocks PANIC only when `stagnationThreshold` is less than 15. With the default value (15), it never blocks PANIC.
-5. After more than 50 generations without improvement: if the [complexity](#selection-score-and-complexity-penalty) of the best client grew in the last 50 generations by 2 or more (for example, 8 new hidden units), or by `0.25 × max(c0, 8)` or more (`c0` is the complexity 50 generations ago), and the raw best score grew by `0.01` or less, the pressure changes to COMPACT, and this generation is an [optimization generation](#selection-score-and-complexity-penalty). At the next generation without improvement where this condition is false, the pressure changes back to NORMAL.
+4. PANIC has a timeout of [`panicMaxGenerations`](#panicmaxgenerations) (default 30) generations. Then the pressure changes to ESCAPE, and a cooldown of [`panicCooldownGenerations`](#paniccooldowngenerations) (default 60) generations starts. During the cooldown, the step ESCAPE → PANIC is blocked; each improvement halves the remaining cooldown. The cooldown counts down in each generation, and ESCAPE → PANIC needs `4 × stagnationThreshold` generations without improvement, so the cooldown blocks PANIC only when `panicCooldownGenerations` is more than `4 × stagnationThreshold`. With the default values (60 and 15), it never blocks PANIC.
+5. When the [`compactTrigger`](#compacttrigger) counter is more than 50: if the [complexity](#selection-score-and-complexity-penalty) of the best client grew in the last 50 generations by 2 or more (for example, 8 new hidden units), or by `0.25 × max(c0, 8)` or more (`c0` is the complexity 50 generations ago), and the raw best score grew by `0.01` or less, the pressure changes to COMPACT, and this generation is an [optimization generation](#selection-score-and-complexity-penalty). At the next generation without improvement where this condition is false, the pressure changes back to NORMAL.
 
 **Complete Example:**
 
@@ -924,6 +930,68 @@ for (let i = 0; i < 1000; i++) {
     // [Gen 50] Mutation Pressure: NORMAL → BOOST (stagnated for 15 generations, best: 0.912345)
     // [Gen 75] Mutation Pressure: BOOST → NORMAL (fitness improved to 0.923456)
 }
+```
+
+### `pressureTopologyBoost`
+
+**Type:** `boolean`  
+**Default:** `true`
+
+When `false`, the levels BOOST, ESCAPE and PANIC use the topology multiplier `1.0x` (the same as NORMAL). The weight multipliers, COMPACT (`0.1x` topology), and the escalation logic do not change. The topology multiplier scales the probabilities of add unit, remove unit, block mutation, and block removal. The number of `Math.random()` calls does not change.
+
+With `true`, `getMutationPressure()` returns the entries of the exported `MUTATION_PRESSURE_CONST`, as in earlier versions. With `false`, it returns a table of this instance; `MUTATION_PRESSURE_CONST` does not change.
+
+**Example:**
+
+```typescript
+// Keep the COMPACT brake, but do not add more topology mutations when stuck
+const glstm = new GeneLSTM(300, {
+    pressureTopologyBoost: false,
+});
+```
+
+### `panicMaxGenerations`
+
+**Type:** `number`  
+**Default:** `30`
+
+Number of generations in PANIC. Then the pressure changes to ESCAPE and the PANIC cooldown starts. The value is rounded down; values below `1` become `1`.
+
+### `panicCooldownGenerations`
+
+**Type:** `number`  
+**Default:** `60`
+
+Length of the cooldown after a PANIC timeout. During the cooldown, the step ESCAPE → PANIC is blocked (see step 4 of the escalation logic). The value is rounded down; values below `0` become `0`.
+
+With the default `stagnationThreshold` (15), the default value 60 never blocks PANIC. A value of `61` or more blocks it: then a blocked step starts the ESCAPE counter again, so the next PANIC comes `4 × stagnationThreshold` generations later.
+
+**Example:**
+
+```typescript
+// Fewer PANIC phases in a long run without improvement
+const glstm = new GeneLSTM(300, {
+    panicMaxGenerations: 20,
+    panicCooldownGenerations: 120,
+});
+```
+
+### `compactTrigger`
+
+**Type:** `'levelCounter' | 'sinceImprovement'`  
+**Default:** `'levelCounter'`
+
+Selects the counter that the COMPACT check (step 5 of the escalation logic) compares with 50:
+
+- `'levelCounter'`: the stagnation counter of the current level. The behaviour of earlier versions. Each level change sets this counter to 0, so COMPACT can start only in a level whose threshold is more than 50. With the default `stagnationThreshold` (15), this is only ESCAPE, in generations 51–60 of the ESCAPE level.
+- `'sinceImprovement'`: the number of generations since the last improvement. Only an improvement sets it to 0, so COMPACT can start at any level after more than 50 generations without improvement.
+
+**Example:**
+
+```typescript
+const glstm = new GeneLSTM(300, {
+    compactTrigger: 'sinceImprovement',
+});
 ```
 
 ---

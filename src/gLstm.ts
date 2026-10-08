@@ -4,7 +4,15 @@ import { Genome } from './genome.js';
 import type { LSTM } from './lstm.js';
 import { RandomSelector } from './randomSelector.js';
 
-import type { GeneOptions, SleepingBlockConfig, SeqInput, GeneLSTMOptions, SpeciesSelection } from './types/index.js';
+import type {
+    GeneOptions,
+    SleepingBlockConfig,
+    SeqInput,
+    GeneLSTMOptions,
+    SpeciesSelection,
+    CompactTrigger,
+    MutationPressureType,
+} from './types/index.js';
 import { EMutationPressure, MUTATION_PRESSURE_CONST, IGlstmFitOptions, IGlstmFitHistory } from './types/index.js';
 import { computeLoss, isY2D, mean, variance } from './helpers/index.js';
 
@@ -88,6 +96,10 @@ function resolveGeneLstmOptions(clients: number, options?: GeneLSTMOptions): Res
         mutationPressure: options?.mutationPressure ?? EMutationPressure.NORMAL,
         enablePressureEscalation: options?.enablePressureEscalation ?? true,
         stagnationThreshold: options?.stagnationThreshold ?? 15,
+        pressureTopologyBoost: options?.pressureTopologyBoost ?? true,
+        panicMaxGenerations: options?.panicMaxGenerations ?? 30,
+        panicCooldownGenerations: options?.panicCooldownGenerations ?? 60,
+        compactTrigger: options?.compactTrigger ?? 'levelCounter',
 
         loadData: options?.loadData,
         loadPercent: options?.loadPercent || 0.5,
@@ -156,9 +168,14 @@ export class GeneLSTM {
     private _pressureImprovementRel = 1e-3; 
 
     private _panicCounter = 0;
-    private _panicMaxGenerations = 30; 
+    private _panicMaxGenerations: number;
     private _panicCooldownCounter = 0;
-    private _panicCooldownGenerations = 60; 
+    private _panicCooldownGenerations: number;
+
+    private _pressureTopologyBoost: boolean;
+    private _pressureMultipliers: Record<EMutationPressure, Record<MutationPressureType, number>>;
+    private _compactTrigger: CompactTrigger;
+    private _generationsSinceImprovement = 0;
 
     private _stagnationThresholdByPressure: Record<EMutationPressure, number>;
 
@@ -239,6 +256,19 @@ export class GeneLSTM {
             [EMutationPressure.ESCAPE]: this._stagnationThreshold * 4,
             [EMutationPressure.PANIC]: Number.MAX_SAFE_INTEGER,
         };
+        this._panicMaxGenerations = Math.max(1, Math.floor(o.panicMaxGenerations));
+        this._panicCooldownGenerations = Math.max(0, Math.floor(o.panicCooldownGenerations));
+        this._pressureTopologyBoost = o.pressureTopologyBoost;
+        // With the boost on, keep the exported table itself, so runtime edits of MUTATION_PRESSURE_CONST still apply.
+        this._pressureMultipliers = this._pressureTopologyBoost
+            ? MUTATION_PRESSURE_CONST
+            : {
+                  ...MUTATION_PRESSURE_CONST,
+                  [EMutationPressure.BOOST]: { ...MUTATION_PRESSURE_CONST.BOOST, topology: 1 },
+                  [EMutationPressure.ESCAPE]: { ...MUTATION_PRESSURE_CONST.ESCAPE, topology: 1 },
+                  [EMutationPressure.PANIC]: { ...MUTATION_PRESSURE_CONST.PANIC, topology: 1 },
+              };
+        this._compactTrigger = o.compactTrigger;
 
         this._verbose = o.verbose;
 
@@ -349,6 +379,22 @@ export class GeneLSTM {
         this._mutationPressure = value;
     }
 
+    get pressureTopologyBoost() {
+        return this._pressureTopologyBoost;
+    }
+
+    get panicMaxGenerations() {
+        return this._panicMaxGenerations;
+    }
+
+    get panicCooldownGenerations() {
+        return this._panicCooldownGenerations;
+    }
+
+    get compactTrigger() {
+        return this._compactTrigger;
+    }
+
     get champion() {
         return this._champion;
     }
@@ -358,7 +404,7 @@ export class GeneLSTM {
     }
 
     getMutationPressure(): { topology: number; weights: number } {
-        return MUTATION_PRESSURE_CONST[this._mutationPressure];
+        return this._pressureMultipliers[this._mutationPressure];
     }
 
     emptyGenome() {
@@ -694,6 +740,7 @@ export class GeneLSTM {
                 this._mutationPressure = EMutationPressure.ESCAPE;
                 this._panicCounter = 0;
                 this._stagnationCounter = 0;
+                this._generationsSinceImprovement++;
                 this._panicCooldownCounter = this._panicCooldownGenerations;
 
                 if (generation !== undefined && this._verbose === 2) {
@@ -719,6 +766,7 @@ export class GeneLSTM {
 
             this._bestFitnessEver = currentBestFitness;
             this._stagnationCounter = 0;
+            this._generationsSinceImprovement = 0;
             this._panicCounter = 0;
 
             if (this._panicCooldownCounter > 0) {
@@ -752,11 +800,12 @@ export class GeneLSTM {
         }
 
         this._stagnationCounter++;
+        this._generationsSinceImprovement++;
 
+        const compactCounter =
+            this._compactTrigger === 'sinceImprovement' ? this._generationsSinceImprovement : this._stagnationCounter;
         const canCompact =
-            this._stagnationCounter > HISTORY_WINDOW &&
-            this._bestHistory.length >= 2 &&
-            this._complexityHistory.length >= 2;
+            compactCounter > HISTORY_WINDOW && this._bestHistory.length >= 2 && this._complexityHistory.length >= 2;
 
         if (canCompact) {
             const s0 = this._bestHistory[0];

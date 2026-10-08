@@ -94,6 +94,8 @@ export interface IGlstmFitHistory {
 
 export type SpeciesSelection = 'legacy' | 'proportional';
 
+export type CompactTrigger = 'levelCounter' | 'sinceImprovement';
+
 export interface GeneLSTMOptions {
     CP?: number;
     C1?: number;
@@ -135,6 +137,10 @@ export interface GeneLSTMOptions {
     mutationPressure?: EMutationPressure;
     enablePressureEscalation?: boolean;
     stagnationThreshold?: number;
+    pressureTopologyBoost?: boolean;
+    panicMaxGenerations?: number;
+    panicCooldownGenerations?: number;
+    compactTrigger?: CompactTrigger;
 
     verbose?: number;
     

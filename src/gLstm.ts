@@ -415,13 +415,7 @@ export class GeneLSTM {
         const totalDepth = this._clients.reduce((acc, c) => acc + c.genome.lstmArray.length, 0);
 
         const totalUnits = this._clients.reduce((acc, c) => {
-            return (
-                acc +
-                c.genome.lstmArray.reduce((uAcc, lstm) => {
-                    // safest: readoutW length reflects hiddenSize after _ensureConsistentSizes
-                    return uAcc + (lstm.readoutW?.length ?? lstm.model().hiddenSize ?? 1);
-                }, 0)
-            );
+            return acc + c.genome.lstmArray.reduce((uAcc, lstm) => uAcc + lstm.shortMemory.length, 0);
         }, 0);
 
         const totalBlocks = totalDepth;
@@ -594,7 +588,7 @@ export class GeneLSTM {
             // ---- logging ----
             if (verbose === 2 || (verbose === 1 && (epoch % logInterval === 0 || epoch === 0))) {
                 const blocks = bestClient.genome.lstmArray.length;
-                const units = bestClient.genome.lstmArray.reduce((acc, lstm) => acc + (lstm.readoutW?.length ?? 1), 0);
+                const units = bestClient.genome.lstmArray.reduce((acc, lstm) => acc + lstm.shortMemory.length, 0);
                 let msg = `Epoch ${epoch} - error: ${bestError.toFixed(6)} - blocks: ${blocks} - units: ${units}`;
 
                 if (valErr !== undefined) msg += ` - val_error: ${valErr.toFixed(6)}`;

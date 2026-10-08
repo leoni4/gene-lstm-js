@@ -346,7 +346,7 @@ Represents an individual neural network in the population.
 
 **Properties:**
 
-- `genome: Genome` - The LSTM architecture and weights
+- `genome: Genome` - The LSTM architecture and weights. The fields `readoutW`, `readoutB`, `longMemory` and `shortMemory` of each block in `genome.lstmArray` are internal state: do not write them. To change a model, change the output of `model()` and load it with `loadData`
 - `score: number` - Before `evolve()`: the fitness that you set (or that `fit()` sets). After `evolve()`: the normalized selection score (0-1), after the complexity penalty
 - `scoreRaw: number` - The fitness that `evolve()` received (your `score` plus tie-breaker noise smaller than 1e-9)
 - `adjustedScore: number` - `scoreRaw` minus the complexity penalty

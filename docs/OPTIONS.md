@@ -1177,6 +1177,8 @@ const result = glstm.clients[0].calculate(input);
 
 `model()` exports the layers of the champion (if there is no champion, the client with the highest `score`). It also sorts `glstm.clients` by `score`.
 
+**Do not edit the blocks directly:** the fields `readoutW`, `readoutB`, `longMemory` and `shortMemory` of each block in `client.genome.lstmArray` are public in the type declarations, but they are internal state. In normal use, `model()` does not change a genome and does not call `Math.random`. If you write these fields with sizes that do not agree, the next `model()`, `calculate()`, `distance()` or mutation changes the block to agree with the length of `readoutW[0]`: it adds gate units with random weights (this calls `Math.random`), removes units, or replaces readout rows with zeros. To change a model, change the `GeneOptions` that `model()` returns and load them with `loadData`.
+
 **Output settings in the saved model:** `model()` writes `outputDim` and `outputActivation` in each block. When you load a model, a block uses the `outputDim` and `outputActivation` fields of its `LstmOptions` if they exist, else the `GeneLSTM` options. The saved values win over different `GeneLSTM` options. New random clients (when `loadPercent` is less than 1) and new blocks from mutation use the `GeneLSTM` options, so use the values of the training run when you continue to train.
 
 Models saved by version 1.0.10 or earlier do not contain these fields. For them, the `GeneLSTM` options apply:

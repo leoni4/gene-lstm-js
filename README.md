@@ -376,7 +376,7 @@ type SeqInput = number[] | number[][];
 ```
 
 - **Scalar mode**: `number[]` - A sequence of T time steps with one scalar value in each step. `INPUT_FEATURES` has no effect on this input.
-- **Vector mode**: `number[][]` - A sequence of T time steps; each step is a row of features. Each row must have `INPUT_FEATURES` values. During `calculate()`, a unit whose input-weight count is not equal to the row width gets new random input weights, without an error. New sleeping blocks and weight mutations on a unit without input weights create `INPUT_FEATURES` input weights, so with a wrong `INPUT_FEATURES` these weights become random weights.
+- **Vector mode**: `number[][]` - A sequence of T time steps; each step is a row of features. Each row must have `INPUT_FEATURES` values. During `calculate()`, a unit whose input-weight count is not equal to the row width gets new random input weights, without an error. New sleeping blocks and weight mutations on a unit without input weights create `INPUT_FEATURES` input weights, so with a wrong `INPUT_FEATURES` these weights become random weights. Set `inputCheck: 'warn'` or `'throw'` to find a row width that is not equal to `INPUT_FEATURES` (see [`inputCheck`](./docs/OPTIONS.md#inputcheck)).
 
 #### `GeneLSTMOptions`
 

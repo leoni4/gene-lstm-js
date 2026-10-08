@@ -9,6 +9,8 @@ function sigmoid(x: number): number {
     return 1 / (1 + Math.exp(-x));
 }
 
+const inputWidthWarned = new WeakSet<GeneLSTM>();
+
 const flattenBlock = (b: ShortMemoryBlock): number[] => {
     const base = [b.weight1, b.weight2, b.bias];
 
@@ -261,12 +263,16 @@ export class LSTM {
         const D = this._outputDim;
         const fullSeqMemory: number[] | null = fullSeq ? new Array(input.length * D) : null;
         let offset = 0;
+        const inputCheck = this._geneLstm.inputCheck;
+        const checkWidth = inputCheck === 'warn' || inputCheck === 'throw';
 
         if (Array.isArray(input[0])) {
             const seq = input as number[][];
             for (const x_t of seq) {
-                if (Array.isArray(x_t)) this._predictUnitVector(x_t);
-                else this._predictUnit(x_t);
+                if (Array.isArray(x_t)) {
+                    if (checkWidth) this._checkInputWidth(x_t.length);
+                    this._predictUnitVector(x_t);
+                } else this._predictUnit(x_t);
                 if (fullSeqMemory) {
                     this._readoutInto(fullSeqMemory, offset);
                     offset += D;
@@ -290,8 +296,10 @@ export class LSTM {
 
         const seq = input as number[];
         for (const num of seq) {
-            if (Array.isArray(num)) this._predictUnitVector(num);
-            else this._predictUnit(num);
+            if (Array.isArray(num)) {
+                if (checkWidth) this._checkInputWidth(num.length);
+                this._predictUnitVector(num);
+            } else this._predictUnit(num);
             if (fullSeqMemory) {
                 this._readoutInto(fullSeqMemory, offset);
                 offset += D;
@@ -309,6 +317,20 @@ export class LSTM {
         result[0] = (1 - a) * lastIn + a * y[0];
 
         return result;
+    }
+
+    private _checkInputWidth(width: number) {
+        const expected = this._geneLstm.INPUT_FEATURES;
+        if (width === expected) return;
+
+        const message =
+            `gene-lstm: input row has ${width} features, but INPUT_FEATURES is ${expected}. ` +
+            'Input weights of a different length are replaced with random values.';
+        if (this._geneLstm.inputCheck === 'throw') throw new Error(message);
+        if (!inputWidthWarned.has(this._geneLstm)) {
+            inputWidthWarned.add(this._geneLstm);
+            console.warn(message);
+        }
     }
 
     private _readout(): number[] {

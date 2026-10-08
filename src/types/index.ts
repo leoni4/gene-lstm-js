@@ -99,6 +99,7 @@ export interface GeneLSTMOptions {
     INPUT_FEATURES?: number;
     OUTPUT_DIM?: number;
     OUTPUT_ACTIVATION?: 'sigmoid' | 'tanh' | 'identity';
+    inputCheck?: 'off' | 'warn' | 'throw';
     SURVIVORS?: number;
     MUTATION_RATE?: number;
     BIAS_SHIFT_STRENGTH?: number;

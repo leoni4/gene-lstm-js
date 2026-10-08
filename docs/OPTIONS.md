@@ -36,6 +36,7 @@ interface GeneLSTMOptions {
     INPUT_FEATURES?: number;
     OUTPUT_DIM?: number;
     OUTPUT_ACTIVATION?: 'sigmoid' | 'tanh' | 'identity';
+    inputCheck?: 'off' | 'warn' | 'throw';
     SURVIVORS?: number;
     MUTATION_RATE?: number;
 
@@ -109,7 +110,7 @@ The input shape decides how the first block reads the input:
 - `number[]` is a sequence of T time steps with one scalar value in each step. `INPUT_FEATURES` has no effect on this input.
 - `number[][]` is a sequence of T time steps. Each step is a row of features, and each row must have `INPUT_FEATURES` values.
 
-The library does not check the row width. During `calculate()`, a unit whose input-weight count is not equal to the row width gets new random input weights, without an error. New sleeping blocks and weight mutations on a unit without input weights create `INPUT_FEATURES` input weights, so with a wrong `INPUT_FEATURES` these weights become random weights. For example, the small weights (`±epsilon`) of a new sleeping block become weights in `[-1, 1]`.
+By default, the library does not check the row width (see [`inputCheck`](#inputcheck)). During `calculate()`, a unit whose input-weight count is not equal to the row width gets new random input weights, without an error. New sleeping blocks and weight mutations on a unit without input weights create `INPUT_FEATURES` input weights, so with a wrong `INPUT_FEATURES` these weights become random weights. For example, the small weights (`±epsilon`) of a new sleeping block become weights in `[-1, 1]`.
 
 **Example:**
 
@@ -153,6 +154,31 @@ With 2 or more blocks, each block except the last one gives `OUTPUT_DIM` values 
 Activation function of the readout of each block (also the blocks before the last one).
 
 `model()` saves this value in each block (`outputActivation`), and a loaded block uses the saved value. For a model without this field (saved by version 1.0.10 or earlier), use the same value when you load it. For example, such a model trained with `'identity'` and loaded with the default `'sigmoid'` gives different outputs.
+
+### `inputCheck`
+
+**Type:** `'off' | 'warn' | 'throw'`  
+**Default:** `'off'`
+
+Compares the width of each 2-D input row (`number[][]`) with [`INPUT_FEATURES`](#input_features) during `calculate()` (also in `fit()`). The check runs before a unit gets new random input weights, and it does not use `Math.random`.
+
+- `'off'`: no check. The behaviour of earlier versions.
+- `'warn'`: for a row with a different width, `console.warn` writes one message. Each `GeneLSTM` instance writes the message only one time. The calculation continues as with `'off'`, so the outputs do not change.
+- `'throw'`: for a row with a different width, `calculate()` throws an `Error` that gives the row width and `INPUT_FEATURES`. The input weights of the genome do not change.
+
+1-D input (`number[]`) is not checked, because `INPUT_FEATURES` has no effect on it.
+
+**Example:**
+
+```typescript
+const glstm = new GeneLSTM(100, {
+    INPUT_FEATURES: 3,
+    inputCheck: 'throw',
+});
+
+glstm.clients[0].calculate([[0.5, 0.3, 0.8]]); // OK
+glstm.clients[0].calculate([[0.5, 0.3]]); // Error: input row has 2 features, but INPUT_FEATURES is 3. ...
+```
 
 ---
 

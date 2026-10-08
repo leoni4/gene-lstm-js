@@ -161,7 +161,7 @@ import { PRE_TRAINED_DATA } from './my-trained-model.js';
 
 const glstm = new GeneLSTM(1, {
     loadData: PRE_TRAINED_DATA,
-    // model() does not save these values. Use the values of the training run.
+    // Use the values of the training run. Models saved by version 1.0.10 or earlier need them.
     INPUT_FEATURES: 4,
     OUTPUT_DIM: 1,
     OUTPUT_ACTIVATION: 'sigmoid',
@@ -174,7 +174,7 @@ const result = glstm.clients[0].calculate([
 console.log('Result:', result);
 ```
 
-The saved model does not contain `OUTPUT_DIM`, `OUTPUT_ACTIVATION`, or `INPUT_FEATURES`. If you load a model with other values, the outputs change: for example, a model trained with `OUTPUT_ACTIVATION: 'identity'` and loaded with the default `'sigmoid'` gives different outputs, and a smaller `OUTPUT_DIM` removes readout rows without an error. See [Pre-trained Models](./docs/OPTIONS.md#pre-trained-models).
+`model()` saves `outputDim` and `outputActivation` in each block. A loaded block uses these saved values, also when the `GeneLSTM` options are different. Models saved by version 1.0.10 or earlier do not contain these fields: for them, the `GeneLSTM` options apply, and a model trained with `OUTPUT_ACTIVATION: 'identity'` and loaded with the default `'sigmoid'` gives different outputs. `model()` does not save `INPUT_FEATURES`. New random clients and new blocks always use the `GeneLSTM` options, so use the values of the training run when you continue to train. See [Pre-trained Models](./docs/OPTIONS.md#pre-trained-models).
 
 ### Advanced Configuration
 

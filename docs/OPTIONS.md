@@ -143,7 +143,7 @@ Number of outputs. `calculate()` returns an array with `OUTPUT_DIM` values. Each
 
 With 2 or more blocks, each block except the last one gives `OUTPUT_DIM` values for each time step to the next block, as one flat scalar sequence with T × `OUTPUT_DIM` steps. The [skip connection](#skip-connection-alpha-mutation) changes only output 0.
 
-`model()` does not save this value. Use the same value when you load a model: a smaller value removes readout rows without an error, and a larger value adds rows with zero weights.
+`model()` saves this value in each block (`outputDim`), and a loaded block uses the saved value. For a model without this field (saved by version 1.0.10 or earlier), use the same value when you load it: a smaller value removes readout rows without an error, and a larger value adds rows with zero weights.
 
 ### `OUTPUT_ACTIVATION`
 
@@ -152,7 +152,7 @@ With 2 or more blocks, each block except the last one gives `OUTPUT_DIM` values 
 
 Activation function of the readout of each block (also the blocks before the last one).
 
-`model()` does not save this value. Use the same value when you load a model. For example, a model trained with `'identity'` and loaded with the default `'sigmoid'` gives different outputs.
+`model()` saves this value in each block (`outputActivation`), and a loaded block uses the saved value. For a model without this field (saved by version 1.0.10 or earlier), use the same value when you load it. For example, such a model trained with `'identity'` and loaded with the default `'sigmoid'` gives different outputs.
 
 ---
 
@@ -901,7 +901,7 @@ import { PRE_TRAINED_DATA } from './saved-model.js';
 
 const glstm = new GeneLSTM(1, {
     loadData: PRE_TRAINED_DATA,
-    // model() does not save these values. Use the values of the training run.
+    // Use the values of the training run. Models saved by version 1.0.10 or earlier need them.
     INPUT_FEATURES: 4,
     OUTPUT_DIM: 1,
     OUTPUT_ACTIVATION: 'identity',
@@ -913,10 +913,15 @@ const result = glstm.clients[0].calculate(input);
 
 `model()` exports the layers of the champion (if there is no champion, the client with the highest `score`). It also sorts `glstm.clients` by `score`.
 
-**Options that `model()` does not save:** `OUTPUT_DIM`, `OUTPUT_ACTIVATION`, and `INPUT_FEATURES`. When you load a model, a block uses the `outputDim` and `outputActivation` fields of its `LstmOptions` if they exist, else the `GeneLSTM` options. Because `model()` does not write these fields, the `GeneLSTM` options apply. Use the values of the training run:
+**Output settings in the saved model:** `model()` writes `outputDim` and `outputActivation` in each block. When you load a model, a block uses the `outputDim` and `outputActivation` fields of its `LstmOptions` if they exist, else the `GeneLSTM` options. The saved values win over different `GeneLSTM` options. New random clients (when `loadPercent` is less than 1) and new blocks from mutation use the `GeneLSTM` options, so use the values of the training run when you continue to train.
+
+Models saved by version 1.0.10 or earlier do not contain these fields. For them, the `GeneLSTM` options apply:
 
 - `OUTPUT_ACTIVATION`: a different value gives different outputs.
 - `OUTPUT_DIM`: a smaller value removes readout rows without an error; a larger value adds rows with zero weights.
+
+**Option that `model()` does not save:**
+
 - `INPUT_FEATURES`: it does not change the outputs of the loaded weights, but new sleeping blocks and some weight mutations use it (see [`INPUT_FEATURES`](#input_features)).
 
 **Model Format:**
@@ -933,8 +938,8 @@ type LstmOptions = {
     readoutW: number[] | number[][]; // model() writes number[][]: OUTPUT_DIM rows × hiddenSize
     readoutB: number | number[]; // model() writes number[]: OUTPUT_DIM values
     alpha: number;
-    outputDim?: number; // model() does not write it
-    outputActivation?: 'sigmoid' | 'tanh' | 'identity'; // model() does not write it
+    outputDim?: number; // model() writes it; versions 1.0.10 and earlier do not
+    outputActivation?: 'sigmoid' | 'tanh' | 'identity'; // model() writes it; versions 1.0.10 and earlier do not
 };
 
 type GateUnitOptions = {

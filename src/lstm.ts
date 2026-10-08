@@ -430,6 +430,9 @@ export class LSTM {
             readoutB: [...this.readoutB],
 
             alpha: this._alpha,
+
+            outputDim: this._outputDim,
+            outputActivation: this._outputActivation,
         };
     }
 

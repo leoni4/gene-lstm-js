@@ -137,33 +137,27 @@ export class GeneLSTM {
 
     private _sleepingBlockConfig: SleepingBlockConfig;
 
-    // Dynamic CP adjustment parameters
     private _targetSpecies: number;
     private _cpAdjustRate: number;
     private _cpDeadband: number;
     private _minCP: number;
     private _maxCP: number;
 
-    // Mutation pressure parameters
     private _mutationPressure: EMutationPressure;
     private _enablePressureEscalation: boolean;
     private _stagnationThreshold: number;
     private _stagnationCounter = 0;
     private _bestFitnessEver = -Infinity;
-    // --- Pressure tuning knobs ---
-    private _pressureImprovementAbs = 1e-6; // minimal absolute improvement
-    private _pressureImprovementRel = 1e-3; // relative improvement factor (0.1%)
+    private _pressureImprovementAbs = 1e-6; 
+    private _pressureImprovementRel = 1e-3; 
 
-    // Panic control
     private _panicCounter = 0;
-    private _panicMaxGenerations = 30; // how long we allow PANIC to run
+    private _panicMaxGenerations = 30; 
     private _panicCooldownCounter = 0;
-    private _panicCooldownGenerations = 60; // after PANIC ends, forbid re-entering for a while
+    private _panicCooldownGenerations = 60; 
 
-    // Per-level stagnation thresholds, derived from stagnationThreshold.
     private _stagnationThresholdByPressure: Record<EMutationPressure, number>;
 
-    // Champion tracking parameters
     private _bestHistory: number[] = [];
     private _complexityHistory: number[] = [];
     private _champion: Client | null = null;
@@ -350,10 +344,6 @@ export class GeneLSTM {
         return this._runnerUp;
     }
 
-    /**
-     * Returns the current mutation pressure multipliers for topology and weights.
-     * These are used to scale mutation probabilities and magnitudes throughout the system.
-     */
     getMutationPressure(): { topology: number; weights: number } {
         return MUTATION_PRESSURE_CONST[this._mutationPressure];
     }
@@ -462,12 +452,10 @@ export class GeneLSTM {
             throw new Error('validationSplit must be between 0 and 1 (exclusive)');
         }
 
-        // normalize y into 2D array targets
         const y2d: number[][] = isY2D(yTrain) ? yTrain : (yTrain as number[]).map(v => [v]);
 
         const outputDim = y2d[0]?.length ?? 1;
 
-        // split train/val
         let trainX = xTrain;
         let trainY = y2d;
         let valX: SeqInput[] | null = null;
@@ -491,7 +479,6 @@ export class GeneLSTM {
             stoppedEarly: false,
         };
 
-        // index array for shuffling
         const idx = new Array(trainX.length).fill(0).map((_, i) => i);
 
         let epoch = 0;
@@ -508,42 +495,36 @@ export class GeneLSTM {
             let bestClient: Client = this._clients[0];
             let bestError = Infinity;
 
-            // ---- evaluate population ----
             for (const client of this._clients) {
                 let totalLoss = 0;
 
-                // for anti-constant: collect predictions (for 1D output only)
-                const predsForPenalty: number[] = antiConst && outputDim === 1 ? [] : [];
+                const collectPreds = antiConst && outputDim === 1;
+                const predsForPenalty: number[] = [];
 
                 for (let ii = 0; ii < idx.length; ii++) {
                     const i = idx[ii];
-                    const pred = client.calculate(trainX[i]); // returns number[]
+                    const pred = client.calculate(trainX[i]); 
                     const target = trainY[i];
 
-                    // safety: ensure correct dimension
                     if (pred.length !== outputDim) {
-                        // tolerate by slicing/padding
                         const p = pred.slice(0, outputDim);
                         while (p.length < outputDim) p.push(0);
                         totalLoss += computeLoss(p, target, loss);
-                        if (predsForPenalty.length) predsForPenalty.push(p[0]);
+                        if (collectPreds) predsForPenalty.push(p[0]);
                     } else {
                         totalLoss += computeLoss(pred, target, loss);
-                        if (predsForPenalty.length) predsForPenalty.push(pred[0]);
+                        if (collectPreds) predsForPenalty.push(pred[0]);
                     }
                 }
 
                 let err = totalLoss / trainX.length;
 
-                // anti-constant penalty (helps avoid 0.5 plateaus for binary tasks)
-                if (antiConst && outputDim === 1) {
+                if (collectPreds) {
                     const m = mean(predsForPenalty);
                     const v = variance(predsForPenalty);
 
-                    // mean penalty discourages always ~0 or ~1
                     const meanPenalty = antiLambda * Math.abs(m - 0.5);
 
-                    // variance penalty discourages always constant (esp. 0.5)
                     const varPenalty = (antiLambda * 0.5) / (v + 1e-6);
 
                     err = Math.min(10, err + meanPenalty + varPenalty);
@@ -551,11 +532,8 @@ export class GeneLSTM {
 
                 client.error = err;
 
-                // score: map lower error to higher score, keep in (0,1]
-                // simple: score = 1 / (1 + err)  (more stable than 1-err for losses like BCE)
                 client.score = 1 / (1 + err);
 
-                // tiny tie-breaker noise (important on flat landscapes)
                 client.score += Math.random() * 1e-9;
 
                 if (client.score > bestScore) {
@@ -567,7 +545,6 @@ export class GeneLSTM {
 
             history.error.push(bestError);
 
-            // ---- validation ----
             let valErr: number | undefined;
             if (valX && valY) {
                 let totalVal = 0;
@@ -585,7 +562,6 @@ export class GeneLSTM {
                 history.validationError!.push(valErr);
             }
 
-            // ---- logging ----
             if (verbose === 2 || (verbose === 1 && (epoch % logInterval === 0 || epoch === 0))) {
                 const blocks = bestClient.genome.lstmArray.length;
                 const units = bestClient.genome.lstmArray.reduce((acc, lstm) => acc + lstm.shortMemory.length, 0);
@@ -599,14 +575,11 @@ export class GeneLSTM {
                 console.log(msg);
             }
 
-            // ---- early stop ----
             if (bestError <= errorThreshold) {
-                // Capture final generation's real raw scores.
                 const finalRawBest = this._prepareRawScores();
 
                 this._updateChampion(finalRawBest);
 
-                // Also leave runnerUp in a valid final state.
                 this._normalizeScore();
                 this._updateRunnerUp(this._clients[0]);
 
@@ -621,7 +594,6 @@ export class GeneLSTM {
                 break;
             }
 
-            // evolve
             const shouldOptimize = bestError <= this._OPT_ERR_THRESHOLD;
             this.evolve(shouldOptimize);
 
@@ -649,7 +621,6 @@ export class GeneLSTM {
         const cpBefore = this._CP;
         const error = speciesCount - this._targetSpecies;
 
-        // Deadband: don't adjust if within acceptable range
         if (Math.abs(error) <= this._cpDeadband) {
             if (generation !== undefined && this._verbose === 2) {
                 console.log(
@@ -660,19 +631,13 @@ export class GeneLSTM {
             return;
         }
 
-        // Calculate adjustment factor
-        // Positive error (too many species) → increase CP
-        // Negative error (too few species) → decrease CP
         const errorRatio = error / this._targetSpecies;
         const adjustmentFactor = 1 + this._cpAdjustRate * errorRatio;
 
-        // Apply multiplicative adjustment
         this._CP *= adjustmentFactor;
 
-        // Clamp to valid range
         this._CP = Math.max(this._minCP, Math.min(this._maxCP, this._CP));
 
-        // Debug logging
         if (generation !== undefined && this._verbose === 2) {
             const direction = error > 0 ? '↑ INCREASE' : '↓ DECREASE';
             console.log(
@@ -685,7 +650,6 @@ export class GeneLSTM {
         const blocks = client.genome.lstmArray.length;
         const units = client.genome.lstmArray.reduce((acc, lstm) => acc + lstm.shortMemory.length, 0);
 
-        // можно другой коэффициент, но это нормальный старт
         const complexity = blocks + 0.25 * units;
 
         return { blocks, units, complexity };
@@ -876,8 +840,6 @@ export class GeneLSTM {
         for (const client of this._clients) {
             client.bestScore = false;
 
-            // Strict raw-fitness comparison.
-            // Complexity, EPS and adjusted score do not participate.
             if (client.scoreRaw > bestClient.scoreRaw) {
                 bestClient = client;
             }
@@ -898,11 +860,8 @@ export class GeneLSTM {
                 throw new Error(`Client has a non-finite score: ${client.score}`);
             }
 
-            // tiny tie-breaker noise (important on flat landscapes)
             client.score += Math.random() * 1e-9;
 
-            // client.score is the fitness assigned by fit()
-            // or by an external/manual evaluation loop.
             client.scoreRaw = client.score;
             client.adjustedScore = client.scoreRaw;
             client.complexity = this._calcClientComplexity(client).complexity;
@@ -920,31 +879,19 @@ export class GeneLSTM {
             return;
         }
 
-        // 1. Capture externally assigned objective fitness.
         const currentRawBest = this._prepareRawScores();
 
-        // 2. Preserve the absolute best raw solution.
         this._updateChampion(currentRawBest);
 
-        // Pressure reacts to objective fitness,
-        // not to complexity-adjusted selection score.
         this.updateMutationPressure(currentRawBest.scoreRaw, this._evolveCounts);
 
-        // 3. Apply complexity penalty and normalize
-        // selection fitness.
         this._normalizeScore();
 
-        // 4. Preserve the current complexity-aware winner.
         this._updateRunnerUp(this._clients[0]);
 
-        // 5. During stagnation return both search directions:
-        // absolute performance and controlled complexity.
         const elitesReinserted = this._reinsertElitesIfStagnant();
 
         if (elitesReinserted) {
-            // Inserted snapshots contain valid scoreRaw and complexity,
-            // but selection scores must be recalculated relative
-            // to the current population.
             this._normalizeScore();
         }
 
@@ -1000,7 +947,6 @@ export class GeneLSTM {
             client.score = adjustedSpan <= this._EPS ? 1 : (client.adjustedScore - adjustedMin) / adjustedSpan;
         }
 
-        // Only one sorting operation per generation.
         this._clients.sort((a, b) => {
             const scoreDifference = b.score - a.score;
 
@@ -1094,8 +1040,6 @@ export class GeneLSTM {
         const insertCount = Math.min(elites.length, this._clients.length);
 
         for (let i = 0; i < insertCount; i++) {
-            // Population is sorted by normalized selection score.
-            // Replace the worst clients with elite snapshots.
             const targetIndex = this._clients.length - 1 - i;
 
             const replacedClient = this._clients[targetIndex];
@@ -1121,29 +1065,15 @@ export class GeneLSTM {
 
         this._championStagnationCount = 0;
 
-        // Champion may now be the strongest raw client in population.
         this._markBestRawClient();
 
         return true;
     }
 
-    /**
-     * Updates the champion (best client ever seen) and handles re-insertion.
-     * The champion is a saved copy of the best performing client.
-     *
-     * Logic:
-     * 1. Compare current best client with stored champion
-     * 2. If current best is better (or no champion exists), save a copy and reset stagnation
-     * 3. If champion hasn't been improved for N epochs (default 10), re-insert it into population
-     *    by replacing the worst performing client
-     * 4. After re-insertion, reset stagnation counter
-     */
     private _updateChampion(currentBest: Client): void {
         const currentBestScoreRaw = currentBest.scoreRaw;
         const currentBestComplexity = currentBest.complexity;
 
-        // Champion means one thing only:
-        // the highest raw fitness ever observed.
         const shouldReplace = this._champion === null || currentBestScoreRaw > this._champion.scoreRaw;
 
         if (shouldReplace) {
@@ -1151,8 +1081,6 @@ export class GeneLSTM {
 
             this._champion = this._copyClient(currentBest);
 
-            // Champion's public score should represent its raw fitness,
-            // not a generation-relative normalized score.
             this._champion.score = currentBestScoreRaw;
             this._champion.scoreRaw = currentBestScoreRaw;
             this._championStagnationCount = 0;
@@ -1181,18 +1109,11 @@ export class GeneLSTM {
     }
 
     private _updateRunnerUp(currentSelectionBest: Client): void {
-        // runnerUp is a snapshot of the current generation's
-        // best complexity-adjusted client.
         this._runnerUp = this._copyClient(currentSelectionBest);
 
-        // bestScore is generation-specific raw-elite metadata.
         this._runnerUp.bestScore = false;
     }
 
-    /**
-     * Creates a deep copy of a client, including its genome.
-     * This ensures the champion is preserved independently of population changes.
-     */
     private _copyClient(client: Client): Client {
         const geneOptions = client.genome.lstmArray.map(lstm => lstm.model());
 

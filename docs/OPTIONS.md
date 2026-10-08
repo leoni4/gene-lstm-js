@@ -290,7 +290,7 @@ Before each `evolve()` call, each client must have a fitness in `client.score` (
 
 1. A `NaN` or `±Infinity` score makes `evolve()` throw an error.
 2. It adds tie-breaker noise smaller than `1e-9` to `score` and copies the value to `scoreRaw`. The champion and the mutation pressure use `scoreRaw`.
-3. It calculates `complexity = blocks + 0.25 × (sum of the readout rows of all blocks)`. The number of readout rows of a block is `OUTPUT_DIM`. The number of hidden units does not change this value.
+3. It calculates `complexity = blocks + 0.25 × (sum of the hidden units of all blocks)`. For example, 2 blocks with 60 hidden units each give `2 + 0.25 × 120 = 32`. `OUTPUT_DIM` does not change this value. (Versions 1.0.5–1.0.10 counted `OUTPUT_DIM` for each block instead of the hidden units.)
 4. It calculates `adjustedScore = scoreRaw − λ × log1p(complexity) / log1p(maxComplexity) × max(rawSpan, 0.05)`. `maxComplexity` is the highest complexity in the population, and `rawSpan` is the difference between the highest and the lowest `scoreRaw`.
 5. It replaces `score` with the normalized value `(adjustedScore − min) / (max − min)` in `[0, 1]`. If `max − min ≤ EPS`, all clients get `score = 1`. Then it sorts `clients` by `score`; when two scores have a difference of `EPS` or less, the client with the lower complexity comes first.
 
@@ -854,7 +854,7 @@ const glstm = new GeneLSTM(300, {
 2. If fitness improves: reduce pressure by one level (PANIC → ESCAPE → BOOST → NORMAL; COMPACT → NORMAL)
 3. If stagnant: escalate (NORMAL → BOOST → ESCAPE → PANIC) after the thresholds in the table of [`stagnationThreshold`](#stagnationthreshold)
 4. PANIC has a timeout of 30 generations. Then the pressure changes to ESCAPE, and a cooldown of 60 generations starts. During the cooldown, the step ESCAPE → PANIC is blocked; each improvement halves the remaining cooldown. The cooldown counts down in each generation, and ESCAPE → PANIC needs `4 × stagnationThreshold` generations without improvement, so the cooldown blocks PANIC only when `stagnationThreshold` is less than 15. With the default value (15), it never blocks PANIC.
-5. After more than 50 generations without improvement: if the complexity of the best client grew (by 2 or more, or by 25% or more) in the last 50 generations and the raw best score grew by `0.01` or less, the pressure changes to COMPACT, and this generation is an [optimization generation](#selection-score-and-complexity-penalty). At the next generation without improvement where this condition is false, the pressure changes back to NORMAL.
+5. After more than 50 generations without improvement: if the [complexity](#selection-score-and-complexity-penalty) of the best client grew in the last 50 generations by 2 or more (for example, 8 new hidden units), or by `0.25 × max(c0, 8)` or more (`c0` is the complexity 50 generations ago), and the raw best score grew by `0.01` or less, the pressure changes to COMPACT, and this generation is an [optimization generation](#selection-score-and-complexity-penalty). At the next generation without improvement where this condition is false, the pressure changes back to NORMAL.
 
 **Complete Example:**
 

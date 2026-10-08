@@ -683,7 +683,7 @@ export class GeneLSTM {
 
     private _calcClientComplexity(client: Client): { blocks: number; units: number; complexity: number } {
         const blocks = client.genome.lstmArray.length;
-        const units = client.genome.lstmArray.reduce((acc, lstm) => acc + (lstm.readoutW?.length ?? 1), 0);
+        const units = client.genome.lstmArray.reduce((acc, lstm) => acc + lstm.shortMemory.length, 0);
 
         // можно другой коэффициент, но это нормальный старт
         const complexity = blocks + 0.25 * units;
